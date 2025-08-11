@@ -27,6 +27,8 @@
                 newsItem2Date: "2025年4月28日",
                 newsItem3Title: "祝贺！团队成员齐奔和李睿涵通过博士论文答辩",
                 newsItem3Date: "2025年5月9日",
+                newsItem4Title: "团队成员萧星宇论文在第六届中国“双法”研究会风险管理分会学术年会暨2025年清华大学质量与可靠性研究院年会论文评选活动中入选推荐名单",
+                newsItem4Date: "2025年8月11日",
                 // newsItem4Title: "测试",
                 // newsItem4Date: "测试日期",
                 newsMoreLink:"查看所有新闻",
