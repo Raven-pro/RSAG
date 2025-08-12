@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>团队管理 - RSAG</title>
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>RSAG 管理</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item">
+                    📊 仪表板
+                </a>
+                <a href="publications.html" class="nav-item">
+                    📚 论文管理
+                </a>
+                <a href="news.html" class="nav-item">
+                    📰 新闻管理
+                </a>
+                <a href="team.html" class="nav-item active">
+                    👥 团队管理
+                </a>
+                <a href="files.html" class="nav-item">
+                    📁 文件管理
+                </a>
+                <button class="nav-item logout">
+                    🚪 退出登录
+                </button>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <div class="content-header">
+                <h1>团队管理</h1>
+                <p>管理课题组成员信息</p>
+            </div>
+
+            <!-- 工具栏 -->
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <input type="text" class="search-input" placeholder="搜索成员姓名..." id="search-input">
+                        <div class="search-icon">🔍</div>
+                    </div>
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn btn-primary" id="add-member-btn">
+                        ➕ 添加成员
+                    </button>
+                </div>
+            </div>
+
+            <!-- 团队成员网格 -->
+            <div id="team-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+                <!-- 加载状态 -->
+                <div id="loading-placeholder" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
+                    <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                    加载中...
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 添加/编辑成员模态框 -->
+    <div id="member-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; overflow-y: auto;">
+        <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;">
+            <div style="background: white; border-radius: 8px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                <div class="card-header">
+                    <h3 id="modal-title">添加团队成员</h3>
+                </div>
+                <div class="card-body">
+                    <form id="member-form">
+                        <input type="hidden" id="member-id" name="id">
+                        
+                        <div class="form-group">
+                            <label for="name" class="form-label">姓名 *</label>
+                            <input type="text" id="name" name="name" class="form-input" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="title" class="form-label">职位/学位 *</label>
+                            <input type="text" id="title" name="title" class="form-input" placeholder="如：副教授、博士生、硕士生等" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="research_area" class="form-label">研究方向</label>
+                            <textarea id="research_area" name="research_area" class="form-textarea" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="bio" class="form-label">个人简介</label>
+                            <textarea id="bio" name="bio" class="form-textarea" rows="4"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="photo_url" class="form-label">头像</label>
+                            <div style="display: flex; gap: 1rem; align-items: center;">
+                                <input type="text" id="photo_url" name="photo_url" class="form-input" placeholder="头像URL或路径">
+                                <button type="button" class="btn btn-secondary" id="upload-photo-btn">
+                                    📤 上传头像
+                                </button>
+                            </div>
+                            <div style="margin-top: 0.5rem;">
+                                <img id="photo-preview" src="" alt="预览" style="max-width: 120px; max-height: 120px; display: none; border-radius: 50%; border: 2px solid #e2e8f0; object-fit: cover;">
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label for="email" class="form-label">邮箱</label>
+                                <input type="email" id="email" name="email" class="form-input">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="phone" class="form-label">电话</label>
+                                <input type="tel" id="phone" name="phone" class="form-input">
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label for="order_index" class="form-label">显示顺序</label>
+                                <input type="number" id="order_index" name="order_index" class="form-input" min="1" value="1">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="status" class="form-label">状态</label>
+                                <select id="status" name="status" class="form-select">
+                                    <option value="active">在组</option>
+                                    <option value="alumni">已毕业</option>
+                                    <option value="inactive">离组</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                            <button type="button" class="btn btn-secondary" id="cancel-btn">取消</button>
+                            <button type="submit" class="btn btn-primary" id="save-btn">
+                                <span id="save-text">保存</span>
+                                <span id="save-loading" class="loading" style="display: none;">
+                                    <span class="spinner"></span>
+                                    保存中...
+                                </span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件上传 input -->
+    <input type="file" id="file-input" accept="image/*" style="display: none;">
+
+    <script src="js/admin.js"></script>
+    <script>
+        let currentSearch = '';
+        
+        // 加载团队成员
+        async function loadTeamMembers(search = '') {
+            try {
+                const params = new URLSearchParams({
+                    ...(search && { search })
+                });
+                
+                const response = await AdminUtils.apiRequest(`/team?${params}`);
+                const team = response.team || [];
+                const grid = document.getElementById('team-grid');
+                const loadingPlaceholder = document.getElementById('loading-placeholder');
+                
+                if (loadingPlaceholder) {
+                    loadingPlaceholder.remove();
+                }
+                
+                if (team.length === 0) {
+                    grid.innerHTML = `
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #64748b;">
+                            ${search ? '未找到匹配的成员' : '暂无团队成员'}
+                        </div>
+                    `;
+                    return;
+                }
+                
+                grid.innerHTML = team.map(member => `
+                    <div class="card">
+                        <div class="card-body" style="text-align: center;">
+                            <div style="margin-bottom: 1rem;">
+                                <img src="${member.photo_url || '/images/default-avatar.png'}" 
+                                     alt="${member.name}" 
+                                     style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0;"
+                                     onerror="this.src='/images/default-avatar.png'">
+                            </div>
+                            <h4 style="margin: 0 0 0.5rem 0; color: #1e293b;">${member.name}</h4>
+                            <p style="margin: 0 0 0.5rem 0; color: var(--tsinghua-purple); font-weight: 500;">${member.title}</p>
+                            ${member.research_area ? `
+                                <p style="margin: 0 0 1rem 0; color: #64748b; font-size: 0.875rem; line-height: 1.4;">
+                                    ${member.research_area.length > 60 ? member.research_area.substring(0, 60) + '...' : member.research_area}
+                                </p>
+                            ` : ''}
+                            <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem;">
+                                <span class="status-badge ${getStatusClass(member.status)}">
+                                    ${getStatusText(member.status)}
+                                </span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: center;">
+                                <button class="btn btn-small btn-secondary" onclick="editMember(${member.id})">
+                                    编辑
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="deleteMember(${member.id})">
+                                    删除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('加载团队成员失败:', error);
+                AdminUtils.showNotification('加载失败，请稍后重试', 'error');
+            }
+        }
+        
+        // 获取状态样式类
+        function getStatusClass(status) {
+            const statusMap = {
+                active: 'status-success',
+                alumni: 'status-warning',
+                inactive: 'status-error'
+            };
+            return statusMap[status] || 'status-error';
+        }
+        
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                active: '在组',
+                alumni: '已毕业',
+                inactive: '离组'
+            };
+            return statusMap[status] || status;
+        }
+        
+        // 显示添加成员模态框
+        function showAddModal() {
+            const modal = document.getElementById('member-modal');
+            const form = document.getElementById('member-form');
+            const title = document.getElementById('modal-title');
+            
+            title.textContent = '添加团队成员';
+            form.reset();
+            document.getElementById('member-id').value = '';
+            document.getElementById('order_index').value = '1';
+            document.getElementById('status').value = 'active';
+            
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        
+        // 编辑成员
+        async function editMember(id) {
+            try {
+                const member = await AdminUtils.apiRequest(`/team/${id}`);
+                
+                const modal = document.getElementById('member-modal');
+                const form = document.getElementById('member-form');
+                const title = document.getElementById('modal-title');
+                
+                title.textContent = '编辑团队成员';
+                
+                // 填充表单数据
+                Object.keys(member).forEach(key => {
+                    const element = form.querySelector(`[name="${key}"]`);
+                    if (element) {
+                        element.value = member[key] || '';
+                    }
+                });
+                
+                // 更新头像预览
+                updatePhotoPreview();
+                
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                
+            } catch (error) {
+                console.error('加载成员数据失败:', error);
+                AdminUtils.showNotification('加载失败，请稍后重试', 'error');
+            }
+        }
+        
+        // 删除成员
+        async function deleteMember(id) {
+            const confirmed = await AdminUtils.showConfirm('确定要删除这位团队成员吗？此操作不可撤销。');
+            if (!confirmed) return;
+            
+            try {
+                await AdminUtils.apiRequest(`/team/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                AdminUtils.showNotification('成员删除成功', 'success');
+                loadTeamMembers(currentSearch);
+                
+            } catch (error) {
+                console.error('删除成员失败:', error);
+                AdminUtils.showNotification('删除失败，请稍后重试', 'error');
+            }
+        }
+        
+        // 隐藏模态框
+        function hideModal() {
+            const modal = document.getElementById('member-modal');
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+        
+        // 更新头像预览
+        function updatePhotoPreview() {
+            const photoUrl = document.getElementById('photo_url').value;
+            const preview = document.getElementById('photo-preview');
+            
+            if (photoUrl) {
+                preview.src = photoUrl;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+        
+        // 上传头像
+        async function uploadPhoto() {
+            const fileInput = document.getElementById('file-input');
+            fileInput.click();
+        }
+        
+        // 表单提交
+        document.getElementById('member-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const form = e.target;
+            const formData = new FormData(form);
+            const id = formData.get('id');
+            const isEdit = !!id;
+            
+            // 表单验证
+            const isValid = AdminUtils.validateForm(form, {
+                name: { required: true, message: '请输入成员姓名' },
+                title: { required: true, message: '请输入职位/学位' }
+            });
+            
+            if (!isValid) return;
+            
+            const saveBtn = document.getElementById('save-btn');
+            const saveText = document.getElementById('save-text');
+            const saveLoading = document.getElementById('save-loading');
+            
+            // 显示加载状态
+            saveBtn.disabled = true;
+            saveText.style.display = 'none';
+            saveLoading.style.display = 'flex';
+            
+            try {
+                const data = Object.fromEntries(formData);
+                delete data.id; // 移除ID字段
+                
+                const url = isEdit ? `/team/${id}` : '/team';
+                const method = isEdit ? 'PUT' : 'POST';
+                
+                await AdminUtils.apiRequest(url, {
+                    method,
+                    body: data
+                });
+                
+                AdminUtils.showNotification(
+                    isEdit ? '成员信息更新成功' : '成员添加成功',
+                    'success'
+                );
+                
+                hideModal();
+                loadTeamMembers(currentSearch);
+                
+            } catch (error) {
+                console.error('保存成员失败:', error);
+                AdminUtils.showNotification('保存失败，请稍后重试', 'error');
+            } finally {
+                // 恢复按钮状态
+                saveBtn.disabled = false;
+                saveText.style.display = 'block';
+                saveLoading.style.display = 'none';
+            }
+        });
+        
+        // 事件监听
+        document.getElementById('add-member-btn').addEventListener('click', showAddModal);
+        document.getElementById('cancel-btn').addEventListener('click', hideModal);
+        document.getElementById('upload-photo-btn').addEventListener('click', uploadPhoto);
+        
+        // 头像预览
+        document.getElementById('photo_url').addEventListener('input', updatePhotoPreview);
+        
+        // 文件上传处理
+        document.getElementById('file-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            try {
+                AdminUtils.showNotification('正在上传头像...', 'success');
+                const result = await AdminUtils.uploadFile(file, 'avatar');
+                
+                document.getElementById('photo_url').value = result.url;
+                updatePhotoPreview();
+                AdminUtils.showNotification('头像上传成功', 'success');
+                
+            } catch (error) {
+                console.error('头像上传失败:', error);
+                AdminUtils.showNotification('头像上传失败，请稍后重试', 'error');
+            }
+        });
+        
+        // 搜索功能
+        const searchInput = document.getElementById('search-input');
+        const debouncedSearch = AdminUtils.debounce((search) => {
+            currentSearch = search;
+            loadTeamMembers(search);
+        }, 300);
+        
+        searchInput.addEventListener('input', (e) => {
+            debouncedSearch(e.target.value.trim());
+        });
+        
+        // 模态框点击外部关闭
+        document.getElementById('member-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'member-modal') {
+                hideModal();
+            }
+        });
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTeamMembers();
+        });
+        
+        // 暴露函数到全局作用域
+        window.editMember = editMember;
+        window.deleteMember = deleteMember;
+    </script>
+</body>
+</html>

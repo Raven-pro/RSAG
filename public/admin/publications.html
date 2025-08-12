@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>论文管理 - RSAG</title>
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>RSAG 管理</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item">
+                    📊 仪表板
+                </a>
+                <a href="publications.html" class="nav-item active">
+                    📚 论文管理
+                </a>
+                <a href="news.html" class="nav-item">
+                    📰 新闻管理
+                </a>
+                <a href="team.html" class="nav-item">
+                    👥 团队管理
+                </a>
+                <a href="files.html" class="nav-item">
+                    📁 文件管理
+                </a>
+                <button class="nav-item logout">
+                    🚪 退出登录
+                </button>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <div class="content-header">
+                <h1>论文管理</h1>
+                <p>管理课题组发表的论文和研究成果</p>
+            </div>
+
+            <!-- 工具栏 -->
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <input type="text" class="search-input" placeholder="搜索论文标题、作者..." id="search-input">
+                        <div class="search-icon">🔍</div>
+                    </div>
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn btn-primary" id="add-publication-btn">
+                        ➕ 添加论文
+                    </button>
+                </div>
+            </div>
+
+            <!-- 论文列表 -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table" id="publications-table">
+                            <thead>
+                                <tr>
+                                    <th>标题</th>
+                                    <th>作者</th>
+                                    <th>期刊</th>
+                                    <th>年份</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="publications-tbody">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; padding: 2rem;">
+                                        <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                                        加载中...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="pagination-container"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 添加/编辑论文模态框 -->
+    <div id="publication-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; overflow-y: auto;">
+        <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;">
+            <div style="background: white; border-radius: 8px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                <div class="card-header">
+                    <h3 id="modal-title">添加论文</h3>
+                </div>
+                <div class="card-body">
+                    <form id="publication-form">
+                        <input type="hidden" id="publication-id" name="id">
+                        
+                        <div class="form-group">
+                            <label for="title" class="form-label">标题 *</label>
+                            <input type="text" id="title" name="title" class="form-input" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="authors" class="form-label">作者 *</label>
+                            <input type="text" id="authors" name="authors" class="form-input" placeholder="多个作者用逗号分隔" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="journal" class="form-label">期刊 *</label>
+                            <input type="text" id="journal" name="journal" class="form-input" required>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label for="year" class="form-label">年份 *</label>
+                                <input type="number" id="year" name="year" class="form-input" min="2000" max="2030" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="volume" class="form-label">卷期</label>
+                                <input type="text" id="volume" name="volume" class="form-input">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="doi" class="form-label">DOI</label>
+                            <input type="text" id="doi" name="doi" class="form-input" placeholder="例如: 10.1016/j.anucene.2025.111240">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="url" class="form-label">论文链接</label>
+                            <input type="url" id="url" name="url" class="form-input">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="abstract" class="form-label">摘要</label>
+                            <textarea id="abstract" name="abstract" class="form-textarea" rows="4"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="keywords" class="form-label">关键词</label>
+                            <input type="text" id="keywords" name="keywords" class="form-input" placeholder="用逗号分隔">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="status" class="form-label">状态</label>
+                            <select id="status" name="status" class="form-select">
+                                <option value="published">已发表</option>
+                                <option value="accepted">已接收</option>
+                                <option value="submitted">已投稿</option>
+                                <option value="draft">草稿</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                            <button type="button" class="btn btn-secondary" id="cancel-btn">取消</button>
+                            <button type="submit" class="btn btn-primary" id="save-btn">
+                                <span id="save-text">保存</span>
+                                <span id="save-loading" class="loading" style="display: none;">
+                                    <span class="spinner"></span>
+                                    保存中...
+                                </span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/admin.js"></script>
+    <script>
+        let currentPage = 1;
+        let currentSearch = '';
+        
+        // 加载论文列表
+        async function loadPublications(page = 1, search = '') {
+            try {
+                const params = new URLSearchParams({
+                    page: page.toString(),
+                    limit: '10',
+                    ...(search && { search })
+                });
+                
+                const response = await AdminUtils.apiRequest(`/publications?${params}`);
+                const publications = response.publications || [];
+                const tbody = document.getElementById('publications-tbody');
+                
+                if (publications.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">
+                                ${search ? '未找到匹配的论文' : '暂无论文数据'}
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                tbody.innerHTML = publications.map(pub => `
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;">${pub.title}</div>
+                            ${pub.doi ? `<div style="font-size: 0.75rem; color: #64748b;">DOI: ${pub.doi}</div>` : ''}
+                        </td>
+                        <td>${pub.authors}</td>
+                        <td>${pub.journal}</td>
+                        <td>${pub.year}</td>
+                        <td>
+                            <span class="status-badge ${getStatusClass(pub.status)}">
+                                ${getStatusText(pub.status)}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">
+                                    编辑
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">
+                                    删除
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+                
+                // 更新分页
+                const paginationContainer = document.getElementById('pagination-container');
+                if (response.totalPages > 1) {
+                    const pagination = AdminUtils.createPagination(
+                        response.currentPage,
+                        response.totalPages,
+                        (page) => {
+                            currentPage = page;
+                            loadPublications(page, currentSearch);
+                        }
+                    );
+                    paginationContainer.innerHTML = '';
+                    paginationContainer.appendChild(pagination);
+                } else {
+                    paginationContainer.innerHTML = '';
+                }
+                
+            } catch (error) {
+                console.error('加载论文列表失败:', error);
+                AdminUtils.showNotification('加载失败，请稍后重试', 'error');
+            }
+        }
+        
+        // 获取状态样式类
+        function getStatusClass(status) {
+            const statusMap = {
+                published: 'status-success',
+                accepted: 'status-success',
+                submitted: 'status-warning',
+                draft: 'status-error'
+            };
+            return statusMap[status] || 'status-error';
+        }
+        
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                published: '已发表',
+                accepted: '已接收',
+                submitted: '已投稿',
+                draft: '草稿'
+            };
+            return statusMap[status] || status;
+        }
+        
+        // 显示添加论文模态框
+        function showAddModal() {
+            const modal = document.getElementById('publication-modal');
+            const form = document.getElementById('publication-form');
+            const title = document.getElementById('modal-title');
+            
+            title.textContent = '添加论文';
+            form.reset();
+            document.getElementById('publication-id').value = '';
+            
+            // 设置默认年份为当前年份
+            document.getElementById('year').value = new Date().getFullYear();
+            
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        
+        // 编辑论文
+        async function editPublication(id) {
+            try {
+                const publication = await AdminUtils.apiRequest(`/publications/${id}`);
+                
+                const modal = document.getElementById('publication-modal');
+                const form = document.getElementById('publication-form');
+                const title = document.getElementById('modal-title');
+                
+                title.textContent = '编辑论文';
+                
+                // 填充表单数据
+                Object.keys(publication).forEach(key => {
+                    const element = form.querySelector(`[name="${key}"]`);
+                    if (element) {
+                        element.value = publication[key] || '';
+                    }
+                });
+                
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                
+            } catch (error) {
+                console.error('加载论文数据失败:', error);
+                AdminUtils.showNotification('加载失败，请稍后重试', 'error');
+            }
+        }
+        
+        // 删除论文
+        async function deletePublication(id) {
+            const confirmed = await AdminUtils.showConfirm('确定要删除这篇论文吗？此操作不可撤销。');
+            if (!confirmed) return;
+            
+            try {
+                await AdminUtils.apiRequest(`/publications/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                AdminUtils.showNotification('论文删除成功', 'success');
+                loadPublications(currentPage, currentSearch);
+                
+            } catch (error) {
+                console.error('删除论文失败:', error);
+                AdminUtils.showNotification('删除失败，请稍后重试', 'error');
+            }
+        }
+        
+        // 隐藏模态框
+        function hideModal() {
+            const modal = document.getElementById('publication-modal');
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+        
+        // 表单提交
+        document.getElementById('publication-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const form = e.target;
+            const formData = new FormData(form);
+            const id = formData.get('id');
+            const isEdit = !!id;
+            
+            // 表单验证
+            const isValid = AdminUtils.validateForm(form, {
+                title: { required: true, message: '请输入论文标题' },
+                authors: { required: true, message: '请输入作者信息' },
+                journal: { required: true, message: '请输入期刊名称' },
+                year: { required: true, message: '请输入发表年份' }
+            });
+            
+            if (!isValid) return;
+            
+            const saveBtn = document.getElementById('save-btn');
+            const saveText = document.getElementById('save-text');
+            const saveLoading = document.getElementById('save-loading');
+            
+            // 显示加载状态
+            saveBtn.disabled = true;
+            saveText.style.display = 'none';
+            saveLoading.style.display = 'flex';
+            
+            try {
+                const data = Object.fromEntries(formData);
+                delete data.id; // 移除ID字段
+                
+                const url = isEdit ? `/publications/${id}` : '/publications';
+                const method = isEdit ? 'PUT' : 'POST';
+                
+                await AdminUtils.apiRequest(url, {
+                    method,
+                    body: data
+                });
+                
+                AdminUtils.showNotification(
+                    isEdit ? '论文更新成功' : '论文添加成功',
+                    'success'
+                );
+                
+                hideModal();
+                loadPublications(currentPage, currentSearch);
+                
+            } catch (error) {
+                console.error('保存论文失败:', error);
+                AdminUtils.showNotification('保存失败，请稍后重试', 'error');
+            } finally {
+                // 恢复按钮状态
+                saveBtn.disabled = false;
+                saveText.style.display = 'block';
+                saveLoading.style.display = 'none';
+            }
+        });
+        
+        // 事件监听
+        document.getElementById('add-publication-btn').addEventListener('click', showAddModal);
+        document.getElementById('cancel-btn').addEventListener('click', hideModal);
+        
+        // 搜索功能
+        const searchInput = document.getElementById('search-input');
+        const debouncedSearch = AdminUtils.debounce((search) => {
+            currentSearch = search;
+            currentPage = 1;
+            loadPublications(1, search);
+        }, 300);
+        
+        searchInput.addEventListener('input', (e) => {
+            debouncedSearch(e.target.value.trim());
+        });
+        
+        // 模态框点击外部关闭
+        document.getElementById('publication-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'publication-modal') {
+                hideModal();
+            }
+        });
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPublications();
+        });
+        
+        // 暴露函数到全局作用域
+        window.editPublication = editPublication;
+        window.deletePublication = deletePublication;
+    </script>
+</body>
+</html>

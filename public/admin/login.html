@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台登录 - RSAG</title>
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>RSAG 管理后台</h1>
+                <p>请输入您的凭据以访问管理系统</p>
+            </div>
+            
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username" class="form-label">用户名</label>
+                    <input type="text" id="username" name="username" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password" class="form-label">密码</label>
+                    <input type="password" id="password" name="password" class="form-input" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;" id="login-btn">
+                    <span id="login-text">登录</span>
+                    <span id="login-loading" class="loading" style="display: none;">
+                        <span class="spinner"></span>
+                        登录中...
+                    </span>
+                </button>
+            </form>
+            
+            <div style="margin-top: 1rem; text-align: center;">
+                <small style="color: #64748b;">
+                    如需帮助，请联系系统管理员
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/admin.js"></script>
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const form = e.target;
+            const formData = new FormData(form);
+            const username = formData.get('username');
+            const password = formData.get('password');
+            
+            const loginBtn = document.getElementById('login-btn');
+            const loginText = document.getElementById('login-text');
+            const loginLoading = document.getElementById('login-loading');
+            
+            // 显示加载状态
+            loginBtn.disabled = true;
+            loginText.style.display = 'none';
+            loginLoading.style.display = 'flex';
+            
+            try {
+                const response = await fetch('/api/admin/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    AdminUtils.setToken(data.token);
+                    AdminUtils.showNotification('登录成功！正在跳转...', 'success');
+                    
+                    // 延迟跳转以显示成功消息
+                    setTimeout(() => {
+                        window.location.href = '/admin/dashboard.html';
+                    }, 1000);
+                } else {
+                    AdminUtils.showNotification(data.error || '登录失败', 'error');
+                }
+            } catch (error) {
+                console.error('登录错误:', error);
+                AdminUtils.showNotification('网络错误，请稍后重试', 'error');
+            } finally {
+                // 恢复按钮状态
+                loginBtn.disabled = false;
+                loginText.style.display = 'block';
+                loginLoading.style.display = 'none';
+            }
+        });
+        
+        // 如果已经登录，直接跳转到仪表板
+        if (AdminUtils.isAuthenticated()) {
+            window.location.href = '/admin/dashboard.html';
+        }
+    </script>
+</body>
+</html>

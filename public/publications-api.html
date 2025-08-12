@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSAG Publications - 发表论文</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'tsinghua-purple': '#6F2C91'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .publication-item {
+            transition: all 0.2s ease;
+        }
+        .publication-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .filter-button.active {
+            background-color: #6F2C91;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 页面标题 -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">RSAG 发表论文</h1>
+            <p class="text-gray-600">反应堆安全分析组 - 研究成果汇总</p>
+            <p class="text-sm text-gray-500 mt-2">更新时间: <span id="last-updated"></span></p>
+        </div>
+
+        <!-- 筛选按钮 -->
+        <div class="text-center mb-8">
+            <div class="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+                <button id="filter-all" class="filter-button active px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    全部
+                </button>
+                <button id="filter-sci" class="filter-button px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    SCI期刊
+                </button>
+                <button id="filter-ei" class="filter-button px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    EI期刊
+                </button>
+                <button id="filter-conference" class="filter-button px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    会议论文
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
+                <div class="text-2xl font-bold text-tsinghua-purple" id="total-count">-</div>
+                <div class="text-sm text-gray-600">总计</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
+                <div class="text-2xl font-bold text-blue-600" id="sci-count">-</div>
+                <div class="text-sm text-gray-600">SCI期刊</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
+                <div class="text-2xl font-bold text-green-600" id="ei-count">-</div>
+                <div class="text-sm text-gray-600">EI期刊</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
+                <div class="text-2xl font-bold text-orange-600" id="conference-count">-</div>
+                <div class="text-sm text-gray-600">会议论文</div>
+            </div>
+        </div>
+
+        <!-- 论文列表 -->
+        <div id="publications-container" class="space-y-6">
+            <!-- 加载提示 -->
+            <div id="loading" class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-tsinghua-purple"></div>
+                <p class="mt-2 text-gray-600">正在加载论文列表...</p>
+            </div>
+        </div>
+
+        <!-- 返回按钮 -->
+        <div class="text-center mt-12">
+            <a href="/index.html" class="inline-flex items-center px-6 py-3 bg-tsinghua-purple text-white rounded-lg hover:bg-purple-700 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                返回首页
+            </a>
+        </div>
+    </div>
+
+    <script>
+        let allPublications = [];
+        let currentFilter = 'all';
+
+        // 加载论文数据
+        async function loadPublications() {
+            try {
+                const response = await fetch('/api/publications');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                allPublications = data.publications || [];
+                
+                // 更新统计信息
+                updateStats();
+                
+                // 显示论文
+                displayPublications();
+                
+                // 更新时间
+                document.getElementById('last-updated').textContent = new Date().toLocaleDateString('zh-CN');
+                
+            } catch (error) {
+                console.error('加载论文失败:', error);
+                document.getElementById('publications-container').innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-red-500 mb-4">
+                            <svg class="w-16 h-16 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            加载论文时出错
+                        </div>
+                        <p class="text-gray-600">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            const sciCount = allPublications.filter(p => p.type === 'SCI').length;
+            const eiCount = allPublications.filter(p => p.type === 'EI').length;
+            const conferenceCount = allPublications.filter(p => p.type === 'Conference').length;
+            
+            document.getElementById('total-count').textContent = allPublications.length;
+            document.getElementById('sci-count').textContent = sciCount;
+            document.getElementById('ei-count').textContent = eiCount;
+            document.getElementById('conference-count').textContent = conferenceCount;
+        }
+
+        // 显示论文
+        function displayPublications() {
+            const container = document.getElementById('publications-container');
+            
+            // 根据当前筛选条件过滤论文
+            let filteredPublications = allPublications;
+            if (currentFilter !== 'all') {
+                const filterMap = {
+                    'sci': 'SCI',
+                    'ei': 'EI',
+                    'conference': 'Conference'
+                };
+                filteredPublications = allPublications.filter(p => p.type === filterMap[currentFilter]);
+            }
+            
+            // 按年份和月份排序（最新的在前）
+            filteredPublications.sort((a, b) => {
+                if (a.year !== b.year) return b.year - a.year;
+                const aMonth = a.month ? parseInt(a.month) : 12;
+                const bMonth = b.month ? parseInt(b.month) : 12;
+                return bMonth - aMonth;
+            });
+            
+            if (filteredPublications.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <p class="text-gray-600">暂无${currentFilter === 'all' ? '' : getFilterName(currentFilter)}论文。</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 按年份分组
+            const groupedByYear = {};
+            filteredPublications.forEach(pub => {
+                if (!groupedByYear[pub.year]) {
+                    groupedByYear[pub.year] = [];
+                }
+                groupedByYear[pub.year].push(pub);
+            });
+            
+            // 生成HTML
+            const years = Object.keys(groupedByYear).sort((a, b) => b - a);
+            let html = '';
+            
+            years.forEach(year => {
+                html += `
+                    <div class="year-section">
+                        <h2 class="text-2xl font-semibold text-gray-800 mb-4 pb-2 border-b-2 border-tsinghua-purple">${year}年</h2>
+                        <div class="space-y-4">
+                `;
+                
+                groupedByYear[year].forEach((pub, index) => {
+                    const typeColor = getTypeColor(pub.type);
+                    html += `
+                        <div class="publication-item bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <div class="flex items-start justify-between mb-3">
+                                <span class="inline-block px-3 py-1 text-xs font-medium rounded-full ${typeColor}">
+                                    ${pub.type}
+                                </span>
+                                <span class="text-sm text-gray-500">${pub.year}-${pub.month || '12'}</span>
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-2">${pub.title}</h3>
+                            <p class="text-gray-600 mb-2"><strong>作者:</strong> ${pub.authors}</p>
+                            <p class="text-gray-600 mb-3"><strong>期刊/会议:</strong> ${pub.journal}</p>
+                            ${pub.doi ? `
+                                <div class="flex items-center space-x-4">
+                                    <span class="text-sm text-gray-500">DOI: ${pub.doi}</span>
+                                    ${pub.url ? `<a href="${pub.url}" target="_blank" class="text-tsinghua-purple hover:underline text-sm">查看论文</a>` : ''}
+                                </div>
+                            ` : (pub.url ? `<a href="${pub.url}" target="_blank" class="text-tsinghua-purple hover:underline text-sm">查看论文</a>` : '')}
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // 获取类型颜色
+        function getTypeColor(type) {
+            switch (type) {
+                case 'SCI': return 'bg-blue-100 text-blue-800';
+                case 'EI': return 'bg-green-100 text-green-800';
+                case 'Conference': return 'bg-orange-100 text-orange-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        // 获取筛选名称
+        function getFilterName(filter) {
+            const names = {
+                'sci': 'SCI',
+                'ei': 'EI',
+                'conference': '会议'
+            };
+            return names[filter] || '';
+        }
+
+        // 设置筛选器
+        function setFilter(filter) {
+            currentFilter = filter;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.filter-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`filter-${filter}`).classList.add('active');
+            
+            // 重新显示论文
+            displayPublications();
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPublications();
+            
+            // 绑定筛选按钮事件
+            document.getElementById('filter-all').addEventListener('click', () => setFilter('all'));
+            document.getElementById('filter-sci').addEventListener('click', () => setFilter('sci'));
+            document.getElementById('filter-ei').addEventListener('click', () => setFilter('ei'));
+            document.getElementById('filter-conference').addEventListener('click', () => setFilter('conference'));
+        });
+    </script>
+</body>
+</html>

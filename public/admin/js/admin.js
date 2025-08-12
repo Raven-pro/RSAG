@@ -1,0 +1,350 @@
+// 管理后台工具库
+class AdminUtils {
+    static baseURL = '/api/admin';
+    
+    // 获取存储的认证令牌
+    static getToken() {
+        return localStorage.getItem('admin_token');
+    }
+    
+    // 设置认证令牌
+    static setToken(token) {
+        localStorage.setItem('admin_token', token);
+    }
+    
+    // 清除认证令牌
+    static clearToken() {
+        localStorage.removeItem('admin_token');
+    }
+    
+    // 检查是否已登录
+    static isAuthenticated() {
+        const token = this.getToken();
+        if (!token) return false;
+        
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.exp > Date.now() / 1000;
+        } catch (e) {
+            return false;
+        }
+    }
+    
+    // API请求封装
+    static async apiRequest(endpoint, options = {}) {
+        const url = `${this.baseURL}${endpoint}`;
+        const token = this.getToken();
+        
+        const config = {
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token && { 'Authorization': `Bearer ${token}` })
+            },
+            ...options
+        };
+        
+        if (config.body && typeof config.body === 'object') {
+            config.body = JSON.stringify(config.body);
+        }
+        
+        try {
+            const response = await fetch(url, config);
+            
+            if (response.status === 401) {
+                this.clearToken();
+                window.location.href = '/admin/login.html';
+                return;
+            }
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || '请求失败');
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('API请求错误:', error);
+            throw error;
+        }
+    }
+    
+    // 显示通知
+    static showNotification(message, type = 'success', duration = 3000) {
+        // 移除已存在的通知
+        const existing = document.querySelector('.notification');
+        if (existing) {
+            existing.remove();
+        }
+        
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        // 自动隐藏
+        setTimeout(() => {
+            notification.remove();
+        }, duration);
+    }
+    
+    // 显示确认对话框
+    static async showConfirm(message, title = '确认操作') {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+            `;
+            
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                background: white;
+                padding: 2rem;
+                border-radius: 8px;
+                max-width: 400px;
+                width: 90%;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            `;
+            
+            dialog.innerHTML = `
+                <h3 style="margin: 0 0 1rem 0; color: #1e293b;">${title}</h3>
+                <p style="margin: 0 0 2rem 0; color: #64748b;">${message}</p>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button class="btn btn-secondary" id="cancel-btn">取消</button>
+                    <button class="btn btn-danger" id="confirm-btn">确认</button>
+                </div>
+            `;
+            
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+            
+            const cancelBtn = dialog.querySelector('#cancel-btn');
+            const confirmBtn = dialog.querySelector('#confirm-btn');
+            
+            cancelBtn.onclick = () => {
+                overlay.remove();
+                resolve(false);
+            };
+            
+            confirmBtn.onclick = () => {
+                overlay.remove();
+                resolve(true);
+            };
+            
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    overlay.remove();
+                    resolve(false);
+                }
+            };
+        });
+    }
+    
+    // 格式化日期
+    static formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    
+    // 文件上传
+    static async uploadFile(file, type = 'general') {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', type);
+        
+        const token = this.getToken();
+        
+        try {
+            const response = await fetch(`${this.baseURL}/upload`, {
+                method: 'POST',
+                headers: {
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                },
+                body: formData
+            });
+            
+            if (response.status === 401) {
+                this.clearToken();
+                window.location.href = '/admin/login.html';
+                return;
+            }
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || '上传失败');
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('文件上传错误:', error);
+            throw error;
+        }
+    }
+    
+    // 表单验证
+    static validateForm(form, rules) {
+        const errors = {};
+        
+        for (const [field, rule] of Object.entries(rules)) {
+            const element = form.querySelector(`[name="${field}"]`);
+            const value = element?.value?.trim();
+            
+            if (rule.required && !value) {
+                errors[field] = rule.message || `${field}是必填项`;
+                continue;
+            }
+            
+            if (value && rule.pattern && !rule.pattern.test(value)) {
+                errors[field] = rule.message || `${field}格式不正确`;
+                continue;
+            }
+            
+            if (value && rule.minLength && value.length < rule.minLength) {
+                errors[field] = rule.message || `${field}至少需要${rule.minLength}个字符`;
+                continue;
+            }
+            
+            if (value && rule.maxLength && value.length > rule.maxLength) {
+                errors[field] = rule.message || `${field}不能超过${rule.maxLength}个字符`;
+                continue;
+            }
+        }
+        
+        // 显示错误信息
+        form.querySelectorAll('.error-message').forEach(el => el.remove());
+        
+        for (const [field, message] of Object.entries(errors)) {
+            const element = form.querySelector(`[name="${field}"]`);
+            if (element) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.style.cssText = 'color: #ef4444; font-size: 0.75rem; margin-top: 0.25rem;';
+                errorDiv.textContent = message;
+                element.parentNode.appendChild(errorDiv);
+            }
+        }
+        
+        return Object.keys(errors).length === 0;
+    }
+    
+    // 分页处理
+    static createPagination(current, total, callback) {
+        const container = document.createElement('div');
+        container.className = 'pagination';
+        container.style.cssText = `
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+        `;
+        
+        const maxVisible = 5;
+        const start = Math.max(1, current - Math.floor(maxVisible / 2));
+        const end = Math.min(total, start + maxVisible - 1);
+        
+        // 上一页
+        if (current > 1) {
+            const prevBtn = this.createPageButton('‹', current - 1, callback);
+            container.appendChild(prevBtn);
+        }
+        
+        // 页码
+        for (let i = start; i <= end; i++) {
+            const pageBtn = this.createPageButton(i, i, callback, i === current);
+            container.appendChild(pageBtn);
+        }
+        
+        // 下一页
+        if (current < total) {
+            const nextBtn = this.createPageButton('›', current + 1, callback);
+            container.appendChild(nextBtn);
+        }
+        
+        return container;
+    }
+    
+    static createPageButton(text, page, callback, active = false) {
+        const button = document.createElement('button');
+        button.textContent = text;
+        button.className = `btn btn-small ${active ? 'btn-primary' : 'btn-secondary'}`;
+        button.onclick = () => callback(page);
+        return button;
+    }
+    
+    // 防抖函数
+    static debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+    
+    // 初始化侧边栏导航
+    static initSidebar() {
+        const currentPath = window.location.pathname;
+        const navItems = document.querySelectorAll('.nav-item');
+        
+        navItems.forEach(item => {
+            const href = item.getAttribute('href');
+            if (href && currentPath.includes(href.split('/').pop().split('.')[0])) {
+                item.classList.add('active');
+            }
+            
+            // 添加退出登录功能
+            if (item.classList.contains('logout')) {
+                item.onclick = async (e) => {
+                    e.preventDefault();
+                    const confirmed = await this.showConfirm('确定要退出登录吗？');
+                    if (confirmed) {
+                        this.clearToken();
+                        window.location.href = '/admin/login.html';
+                    }
+                };
+            }
+        });
+    }
+    
+    // 检查登录状态
+    static checkAuth() {
+        if (!this.isAuthenticated()) {
+            window.location.href = '/admin/login.html';
+            return false;
+        }
+        return true;
+    }
+}
+
+// 页面加载完成后的通用初始化
+document.addEventListener('DOMContentLoaded', () => {
+    // 如果不是登录页面，检查认证状态
+    if (!window.location.pathname.includes('login.html')) {
+        AdminUtils.checkAuth();
+        AdminUtils.initSidebar();
+    }
+});
+
+// 导出到全局
+window.AdminUtils = AdminUtils;

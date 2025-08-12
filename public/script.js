@@ -389,7 +389,20 @@
             });
         }
         navLinks.forEach(link => {
-            link.addEventListener('click', () => {
+            link.addEventListener('click', (e) => {
+                // 专业平滑滚动：阻止默认跳转（包括 /index.html），根据 data-target 平滑滚动且不改变URL
+                const targetSel = link.getAttribute('data-target');
+                if (targetSel) {
+                    e.preventDefault();
+                    const targetEl = document.querySelector(targetSel);
+                    if (targetEl) {
+                        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                    // 清理可能存在的 hash
+                    if (window.location.hash) {
+                        history.replaceState(null, document.title, '/index.html');
+                    }
+                }
                 if (mobileMenu) mobileMenu.classList.add('hidden'); // Hide menu
                 if (menuButton) { // Check if menuButton exists
                      const icon = menuButton.querySelector('i');
@@ -558,3 +571,169 @@
 
         // Set initial language (defaulting to Chinese 'zh')
         setLanguage('zh');
+
+        // 页面初始如存在 hash（例如从后台返回后或外部深链），执行平滑滚动并清理URL
+        if (window.location.hash) {
+            const initialId = window.location.hash.slice(1);
+            const initialEl = document.getElementById(initialId);
+            if (initialEl) {
+                initialEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            history.replaceState(null, document.title, '/index.html');
+        }
+
+        // --- 管理员功能 ---
+        let adminToken = localStorage.getItem('adminToken');
+        let currentUser = null;
+
+        // 显示管理员登录模态框
+        function showAdminLogin() {
+            document.getElementById('admin-modal').classList.remove('hidden');
+        }
+
+        // 隐藏管理员登录模态框
+        function hideAdminLogin() {
+            document.getElementById('admin-modal').classList.add('hidden');
+            document.getElementById('login-error').classList.add('hidden');
+        }
+
+        // 处理管理员登录
+        async function handleAdminLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('admin-username').value;
+            const password = document.getElementById('admin-password').value;
+            const submitBtn = document.getElementById('login-submit');
+            const loginText = document.getElementById('login-text');
+            const loginLoading = document.getElementById('login-loading');
+            const errorDiv = document.getElementById('login-error');
+            
+            // 显示加载状态
+            submitBtn.disabled = true;
+            loginText.classList.add('hidden');
+            loginLoading.classList.remove('hidden');
+            errorDiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // 登录成功
+                    adminToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('adminToken', adminToken);
+                    
+                    hideAdminLogin();
+                    showAdminPanel();
+                    // 登录后自动进入仪表板
+                    setTimeout(() => showAdminSection('dashboard'), 0);
+                } else {
+                    // 登录失败
+                    errorDiv.textContent = data.error || '登录失败';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('登录错误:', error);
+                errorDiv.textContent = '网络错误，请稍后重试';
+                errorDiv.classList.remove('hidden');
+            } finally {
+                // 恢复按钮状态
+                submitBtn.disabled = false;
+                loginText.classList.remove('hidden');
+                loginLoading.classList.add('hidden');
+            }
+        }
+
+        // 显示管理面板
+        function showAdminPanel() {
+            document.getElementById('admin-panel').classList.remove('hidden');
+            document.getElementById('admin-user-info').textContent = `欢迎, ${currentUser.username} (${currentUser.role})`;
+            showAdminSection('dashboard');
+        }
+
+        // 显示公共网站
+        function showPublicSite() {
+            document.getElementById('admin-panel').classList.add('hidden');
+            // 直接跳转回首页，强制移除 hash
+            window.location.href = '/index.html';
+        }
+
+        // 管理员退出登录
+        function adminLogout() {
+            adminToken = null;
+            currentUser = null;
+            localStorage.removeItem('adminToken');
+            showPublicSite();
+        }
+
+        // 显示管理面板的不同部分
+        function showAdminSection(section, sourceEl = null) {
+            const iframe = document.getElementById('admin-content');
+            const navButtons = document.querySelectorAll('.admin-nav-btn');
+            
+            // 移除所有导航按钮的高亮状态
+            navButtons.forEach(btn => btn.classList.remove('bg-tsinghua-purple', 'text-white'));
+            
+            // 高亮当前导航按钮（如果传入了来源元素）
+            if (sourceEl instanceof HTMLElement) {
+                sourceEl.classList.add('bg-tsinghua-purple', 'text-white');
+            }
+            
+            switch(section) {
+                case 'dashboard':
+                    iframe.src = '/admin/dashboard.html';
+                    break;
+                case 'publications':
+                    iframe.src = '/admin/publications.html';
+                    break;
+                case 'news':
+                    iframe.src = '/admin/news.html';
+                    break;
+                case 'team':
+                    iframe.src = '/admin/team.html';
+                    break;
+            }
+        }
+
+        // 检查是否已登录
+        async function checkAdminAuth() {
+            if (adminToken) {
+                try {
+                    const response = await fetch('/api/admin/stats', {
+                        headers: {
+                            'Authorization': `Bearer ${adminToken}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        // Token有效，可以直接显示管理面板
+                        // 这里可以添加自动显示管理面板的逻辑
+                    } else {
+                        // Token无效，清除
+                        localStorage.removeItem('adminToken');
+                        adminToken = null;
+                    }
+                } catch (error) {
+                    console.error('检查认证状态失败:', error);
+                }
+            }
+        }
+
+        // 页面加载时检查登录状态
+        checkAdminAuth();
+
+        // 将函数暴露到全局作用域
+        window.showAdminLogin = showAdminLogin;
+        window.hideAdminLogin = hideAdminLogin;
+        window.handleAdminLogin = handleAdminLogin;
+        window.showPublicSite = showPublicSite;
+        window.adminLogout = adminLogout;
+        window.showAdminSection = showAdminSection;

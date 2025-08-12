@@ -78,11 +78,14 @@
             </a>
 
             <div id="navbar-links" class="hidden md:flex items-center space-x-6">
-                <a href="#home" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navHome">首页</a>
-                <a href="#research" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navResearch">研究方向</a>
-                <a href="#publications" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navPublications">发表论文</a>
-                <a href="#team" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navTeam">团队成员</a>
-                <a href="#contact" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navContact">联系我们</a>
+                <a href="/index.html" data-target="#home" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navHome">首页</a>
+                <a href="/index.html" data-target="#research" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navResearch">研究方向</a>
+                <a href="/index.html" data-target="#publications" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navPublications">发表论文</a>
+                <a href="/index.html" data-target="#team" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navTeam">团队成员</a>
+                <a href="/index.html" data-target="#contact" class="text-gray-600 hover:text-tsinghua-purple transition duration-200" data-lang-key="navContact">联系我们</a>
+                <button id="admin-login-btn" class="px-3 py-1 text-sm bg-tsinghua-purple text-white rounded hover:bg-purple-700 transition duration-200" onclick="showAdminLogin()">
+                    <i data-lucide="settings" class="w-4 h-4 inline mr-1"></i>管理
+                </button>
                 <button id="lang-toggle" title="Switch Language">EN</button> </div>
 
             <div class="md:hidden flex items-center"> <button id="lang-toggle-mobile" class="mr-4 text-sm py-1 px-2 border rounded" title="Switch Language">EN</button> <button id="menu-button" class="text-gray-600 hover:text-tsinghua-purple focus:outline-none">
@@ -91,11 +94,14 @@
             </div>
         </div>
         <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-gray-200">
-             <a href="#home" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navHomeMobile">首页</a>
-             <a href="#research" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navResearchMobile">研究方向</a>
-             <a href="#publications" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navPublicationsMobile">发表论文</a>
-             <a href="#team" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navTeamMobile">团队成员</a>
-             <a href="#contact" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navContactMobile">联系我们</a>
+             <a href="/index.html" data-target="#home" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navHomeMobile">首页</a>
+             <a href="/index.html" data-target="#research" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navResearchMobile">研究方向</a>
+             <a href="/index.html" data-target="#publications" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navPublicationsMobile">发表论文</a>
+             <a href="/index.html" data-target="#team" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navTeamMobile">团队成员</a>
+             <a href="/index.html" data-target="#contact" class="block px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-tsinghua-purple" data-lang-key="navContactMobile">联系我们</a>
+             <button onclick="showAdminLogin()" class="block w-full text-left px-6 py-3 text-tsinghua-purple hover:bg-gray-100">
+                <i data-lucide="settings" class="w-4 h-4 inline mr-2"></i>管理登录
+             </button>
         </div>
     </nav>
 
@@ -129,48 +135,12 @@
             <!-- Takes up 1/3 of the width on medium screens and up -->
             <aside class="w-full md:w-1/3 border-t md:border-t-0 md:border-l border-gray-200 pt-6 md:pt-0 md:pl-8 lg:pl-12">
                 <h2 class="text-2xl font-semibold mb-4 text-tsinghua-purple border-b pb-2" data-lang-key="newsTitle">最近新闻</h2>
-                <ul class="space-y-4">
-                    <!-- <li>
-                        <a href="/news/test.html" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
-                            <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline" data-lang-key="newsItem4Title">祝贺！[学生姓名]荣获[奖项名称]</span><br>
-                            <span class="text-sm text-gray-500" data-lang-key="newsItem4Date">2023年10月26日</span>
-                        </a>
-                    </li> -->
-                    <li>
-                        <a href="/news/item4.html" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
-                            <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline" data-lang-key="newsItem4Title">祝贺！[学生姓名]荣获[奖项名称]</span><br>
-                            <span class="text-sm text-gray-500" data-lang-key="newsItem4Date">2025年8月11日</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/news/item3.html" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
-                            <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline" data-lang-key="newsItem3Title">祝贺！[学生姓名]荣获[奖项名称]</span><br>
-                            <span class="text-sm text-gray-500" data-lang-key="newsItem3Date">2023年10月26日</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/news/item2.html" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
-                            <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline" data-lang-key="newsItem2Title">课题组最新研究成果发表于[期刊名称]</span><br>
-                            <span class="text-sm text-gray-500" data-lang-key="newsItem2Date">2023年10月20日</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/news/item1.html" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
-                            <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline" data-lang-key="newsItem1Title">欢迎新成员[姓名]加入课题组</span><br>
-                            <span class="text-sm text-gray-500" data-lang-key="newsItem1Date">2023年09月15日</span>
-                        </a>
-                    </li>
-
-                    <!-- <li>
-                        <a href="/news/item0.html" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
-                            <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline" data-lang-key="newsItem0Title">欢迎新成员[姓名]加入课题组</span><br>
-                            <span class="text-sm text-gray-500" data-lang-key="newsItem0Date">2023年09月15日</span>
-                        </a>
-                    </li> -->
-                    <!-- Add more news items as needed -->
-
-                    <li class="pt-2">
-                        <a href="/news/total.html" class="text-sm text-blue-600 hover:underline font-medium" data-lang-key="newsMoreLink">查看所有新闻 »</a>
+                <ul id="news-list" class="space-y-4">
+                    <!-- 新闻将通过API动态加载 -->
+                    <li class="news-loading">
+                        <div class="block p-2 rounded">
+                            <span class="text-gray-500">正在加载新闻...</span>
+                        </div>
                     </li>
                 </ul>
 
@@ -234,7 +204,7 @@
                      <p class="text-gray-700" data-lang-key="pub2">"[论文标题]", 作者1, <strong>课题组负责人</strong>, 作者3. <em>期刊/会议名称</em>, 年份. <a href="#" class="text-tsinghua-purple hover:underline">[链接/DOI]</a></p>
                 </li>
                 </ul>
-            <p class="text-center mt-6"><a href="publications.html" class="text-tsinghua-purple hover:underline" data-lang-key="publicationsLink">查看所有发表论文 &rarr;</a></p>
+            <p class="text-center mt-6"><a href="publications-api.html" class="text-tsinghua-purple hover:underline" data-lang-key="publicationsLink">查看所有发表论文 &rarr;</a></p>
         </section> -->
 
         <section id="publications" class="mb-16 scroll-mt-16">
@@ -256,64 +226,19 @@
     
             </ul>
             <p class="text-center mt-6">
-                <a href="publications.html" class="text-tsinghua-purple hover:underline" data-lang-key="publicationsLink">查看所有发表论文 →</a>
+                <a href="publications-api.html" class="text-tsinghua-purple hover:underline" data-lang-key="publicationsLink">查看所有发表论文 →</a>
             </p>
         </section>
 
         <section id="team" class="mb-16 scroll-mt-16">
             <h2 class="text-3xl font-semibold text-center text-gray-800 mb-8 border-b-2 border-tsinghua-purple pb-2 inline-block mx-auto" data-lang-key="teamTitle">团队成员</h2>
-            <div class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-                <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/梁金刚.png" alt="[Image of 负责人照片]" data-lang-alt="teamMember1Alt" class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-tsinghua-purple" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember1Name">[负责人姓名]</h3>
-                    <p class="text-tsinghua-purple" data-lang-key="teamMember1Title">教授 / 研究员</p>
-                    <p class="text-sm text-gray-500" data-lang-key="teamMember1Area">[研究领域简述]</p>
+            <div id="team-grid" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+                <!-- 团队成员将通过API动态加载 -->
+                <div class="team-loading text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <div class="w-24 h-24 rounded-full mx-auto mb-4 bg-gray-200 animate-pulse"></div>
+                    <div class="text-gray-500">正在加载团队成员...</div>
                 </div>
-                <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/齐奔.png" alt="[Image of 成员照片]" data-lang-alt="teamMember2Alt" class="w-24 h-24 rounded-full mx-auto mb-4" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember2Name">[成员姓名]</h3>
-                    <p class="text-gray-600" data-lang-key="teamMember2Title">博士生 / 硕士生 / 博士后</p>
-                    <p class="text-sm text-gray-500" data-lang-key="teamMember2Area">[研究方向]</p>
-                </div>
-                 <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/睿涵.png" alt="[Image of 成员照片]" data-lang-alt="teamMember3Alt" class="w-24 h-24 rounded-full mx-auto mb-4" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember3Name">[成员姓名]</h3>
-                    <p class="text-gray-600" data-lang-key="teamMember3Title">博士生 / 硕士生 / 博士后</p>
-                    <p class="text-sm text-gray-500" data-lang-key="teamMember3Area">[研究方向]</p>
-                </div>
-                 <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/伟健.png" alt="[Image of 成员照片]" data-lang-alt="teamMember4Alt" class="w-24 h-24 rounded-full mx-auto mb-4" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember4Name">[成员姓名]</h3>
-                    <p class="text-gray-600" data-lang-key="teamMember4Title">博士生 / 硕士生 / 博士后</p>
-                    <p class="text-sm text-gray-500" data-lang-key="teamMember4Area">[研究方向]</p>
-                </div>
-                <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/俊逸.png" alt="[Image of 成员照片]" data-lang-alt="teamMember5Alt" class="w-24 h-24 rounded-full mx-auto mb-4" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember5Name">[成员姓名]</h3>
-                    <p class="text-gray-600" data-lang-key="teamMember5Title">博士生 / 硕士生 / 博士后</p>
-                    <p class="text-sm text-gray-500" data-lang-key="teamMember5Area">[研究方向]</p>
-                </div>
-                <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/星宇.png" alt="[Image of 成员照片]" data-lang-alt="teamMember6Alt" class="w-24 h-24 rounded-full mx-auto mb-4" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember6Name">[成员姓名] </h3>
-                    <p class="text-gray-600" data-lang-key="teamMember6Title">博士生 / 硕士生 / 博士后</p>
-                    <p class="text-sm text-gray-500" data-lang-key="teamMember6Area">[研究方向]</p>
-                </div>
-                <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/成昊.jpg" alt="[Image of 成员照片]" data-lang-alt="teamMember7Alt" class="w-24 h-24 rounded-full mx-auto mb-4" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember7Name">[成员姓名]</h3>
-                    <p class="text-gray-600" data-lang-key="teamMember7Title">博士生 / 硕士生 / 博士后</p>
-                    <p class="text-sm text-gray-500" data-lang-key="teamMember7Area">[研究方向]</p>
-                </div>
-                <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/天远.png" alt="[Image of 成员照片]" data-lang-alt="teamMember8Alt" class="w-24 h-24 rounded-full mx-auto mb-4" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember8Name">[成员姓名]</h3>
-                    <p class="text-gray-600" data-lang-key="teamMember8Title">博士生 / 硕士生 / 博士后</p>
-                    <p class="text-sm text-gray-500" data-lang-key="teamMember8Area">[研究方向]</p>
-                </div>
-                <div class="text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                    <img src="/images/沈绍宁.jpg" alt="[Image of 成员照片]" data-lang-alt="teamMember9Alt" class="w-24 h-24 rounded-full mx-auto mb-4" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                    <h3 class="text-lg font-semibold text-gray-800" data-lang-key="teamMember9Name">[成员姓名]</h3>
+            </div>
                     <p class="text-gray-600" data-lang-key="teamMember9Title">博士生 / 硕士生 / 博士后</p>
                     <p class="text-sm text-gray-500" data-lang-key="teamMember9Area">[研究方向]</p>
                 </div>
@@ -338,6 +263,99 @@
         </div>
     </footer>
 
+    <!-- 管理员登录模态框 -->
+    <div id="admin-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen">
+            <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-tsinghua-purple">管理员登录</h2>
+                    <button onclick="hideAdminLogin()" class="text-gray-500 hover:text-gray-700">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                
+                <form id="admin-login-form" onsubmit="handleAdminLogin(event)">
+                    <div class="mb-4">
+                        <label for="admin-username" class="block text-gray-700 text-sm font-bold mb-2">
+                            用户名
+                        </label>
+                        <input type="text" id="admin-username" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-tsinghua-purple" required>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label for="admin-password" class="block text-gray-700 text-sm font-bold mb-2">
+                            密码
+                        </label>
+                        <input type="password" id="admin-password" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-tsinghua-purple" required>
+                    </div>
+                    
+                    <div id="login-error" class="hidden mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    </div>
+                    
+                    <button type="submit" id="login-submit" class="w-full bg-tsinghua-purple text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-200">
+                        <span id="login-text">登录</span>
+                        <span id="login-loading" class="hidden">登录中...</span>
+                    </button>
+                </form>
+                
+                <div class="mt-4 text-sm text-gray-600">
+                    <p>默认账号:</p>
+                    <p>管理员: admin / rsag2025!</p>
+                    <p>编辑员: editor / rsag_edit2025</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理面板 -->
+    <div id="admin-panel" class="fixed inset-0 bg-white hidden z-40">
+        <div class="h-full flex flex-col">
+            <!-- 管理面板顶部导航 -->
+            <div class="bg-tsinghua-purple text-white p-4 flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-xl font-bold">管理面板</h1>
+                    <span id="admin-user-info" class="text-purple-200"></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="showPublicSite()" class="px-3 py-1 bg-purple-600 rounded hover:bg-purple-700 transition">
+                        返回首页
+                    </button>
+                    <button onclick="adminLogout()" class="px-3 py-1 bg-red-600 rounded hover:bg-red-700 transition">
+                        退出登录
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 管理面板内容区域 -->
+            <div class="flex-1 flex">
+                <!-- 侧边栏 -->
+                <div class="w-64 bg-gray-100 border-r">
+                    <nav class="p-4">
+                        <div class="space-y-2">
+                            <button onclick="showAdminSection('dashboard')" class="admin-nav-btn w-full text-left p-3 rounded hover:bg-gray-200 transition">
+                                <i data-lucide="home" class="w-5 h-5 inline mr-2"></i>仪表板
+                            </button>
+                            <button onclick="showAdminSection('publications')" class="admin-nav-btn w-full text-left p-3 rounded hover:bg-gray-200 transition">
+                                <i data-lucide="book-open" class="w-5 h-5 inline mr-2"></i>论文管理
+                            </button>
+                            <button onclick="showAdminSection('news')" class="admin-nav-btn w-full text-left p-3 rounded hover:bg-gray-200 transition">
+                                <i data-lucide="newspaper" class="w-5 h-5 inline mr-2"></i>新闻管理
+                            </button>
+                            <button onclick="showAdminSection('team')" class="admin-nav-btn w-full text-left p-3 rounded hover:bg-gray-200 transition">
+                                <i data-lucide="users" class="w-5 h-5 inline mr-2"></i>团队管理
+                            </button>
+                        </div>
+                    </nav>
+                </div>
+                
+                <!-- 主要内容区域 -->
+                <div class="flex-1 p-6 overflow-y-auto">
+                    <iframe id="admin-content" class="w-full h-full border-0" src=""></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="chat-widget">
         <div id="chat-window" style="display: none;">
             <div id="chat-header">
@@ -359,6 +377,8 @@
              <i data-lucide="message-circle" class="w-8 h-8"></i>
         </button>
     </div>
-    <script src="load_publications.js"></script>
+    <script src="api_publications.js"></script>
+    <script src="api_news.js"></script>
+    <script src="api_team.js"></script>
 </body>
 </html>

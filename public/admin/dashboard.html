@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理仪表板 - RSAG</title>
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>RSAG 管理</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item active">
+                    📊 仪表板
+                </a>
+                <a href="publications.html" class="nav-item">
+                    📚 论文管理
+                </a>
+                <a href="news.html" class="nav-item">
+                    📰 新闻管理
+                </a>
+                <a href="team.html" class="nav-item">
+                    👥 团队管理
+                </a>
+                <a href="files.html" class="nav-item">
+                    📁 文件管理
+                </a>
+                <button class="nav-item logout">
+                    🚪 退出登录
+                </button>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <div class="content-header">
+                <h1>管理仪表板</h1>
+                <p>欢迎回到RSAG课题组管理系统</p>
+            </div>
+
+            <!-- 统计卡片 -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div class="card">
+                    <div class="card-body" style="text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--tsinghua-purple); margin-bottom: 0.5rem;" id="publications-count">
+                            -
+                        </div>
+                        <div style="color: #64748b;">发表论文</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-body" style="text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--success-green); margin-bottom: 0.5rem;" id="news-count">
+                            -
+                        </div>
+                        <div style="color: #64748b;">新闻动态</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-body" style="text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--warning-yellow); margin-bottom: 0.5rem;" id="team-count">
+                            -
+                        </div>
+                        <div style="color: #64748b;">团队成员</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-body" style="text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--error-red); margin-bottom: 0.5rem;" id="files-count">
+                            -
+                        </div>
+                        <div style="color: #64748b;">管理文件</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 快速操作 -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>快速操作</h3>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <a href="publications.html?action=add" class="btn btn-primary">
+                            ➕ 添加新论文
+                        </a>
+                        <a href="news.html?action=add" class="btn btn-success">
+                            📝 发布新闻
+                        </a>
+                        <a href="team.html?action=add" class="btn btn-secondary">
+                            👤 添加成员
+                        </a>
+                        <a href="files.html?action=upload" class="btn btn-secondary">
+                            📤 上传文件
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 最近活动 -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h3>最近活动</h3>
+                </div>
+                <div class="card-body">
+                    <div id="recent-activities">
+                        <div style="text-align: center; color: #64748b; padding: 2rem;">
+                            <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                            加载中...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统状态 -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h3>系统状态</h3>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div>
+                            <div style="font-weight: 500; margin-bottom: 0.5rem;">数据库连接</div>
+                            <div class="status-badge status-success" id="db-status">
+                                正常
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-weight: 500; margin-bottom: 0.5rem;">文件存储</div>
+                            <div class="status-badge status-success" id="storage-status">
+                                正常
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-weight: 500; margin-bottom: 0.5rem;">最后更新</div>
+                            <div style="color: #64748b; font-size: 0.875rem;" id="last-update">
+                                -
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/admin.js"></script>
+    <script>
+        // 获取 token
+        function getToken() {
+            try { return AdminUtils.getToken(); } catch { return window.parent?.localStorage?.getItem('adminToken'); }
+        }
+
+        // 加载统计数据
+        async function loadStats() {
+            try {
+                const token = getToken();
+                if (!token) throw new Error('未找到认证token');
+
+                const response = await fetch('/api/admin/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('获取统计数据失败');
+
+                const stats = await response.json();
+                document.getElementById('publications-count').textContent = stats.publications ?? 0;
+                document.getElementById('news-count').textContent = stats.news ?? 0;
+                document.getElementById('team-count').textContent = stats.team ?? 0;
+                document.getElementById('files-count').textContent = stats.files ?? 0;
+            } catch (error) {
+                console.error('加载统计数据失败:', error);
+            }
+        }
+
+        // 加载最近活动
+        async function loadActivities() {
+            try {
+                const token = getToken();
+                if (!token) throw new Error('未找到认证token');
+
+                const response = await fetch('/api/admin/activities?limit=10', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('获取活动数据失败');
+
+                const data = await response.json();
+                const activities = data.activities || data || [];
+                const container = document.getElementById('recent-activities');
+
+                if (!activities.length) {
+                    container.innerHTML = `
+                        <div class="text-center text-gray-500 py-8">
+                            <i data-lucide="calendar-x" class="w-8 h-8 mx-auto mb-2"></i>
+                            <p>暂无活动记录</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                container.innerHTML = activities.map(a => `
+                    <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                        <div class="p-2 rounded-full bg-blue-100 text-blue-600 mr-4">
+                            <i data-lucide="user" class="w-4 h-4"></i>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-800">${a.description || a.details || a.action || '活动'}</p>
+                            <p class="text-sm text-gray-500">用户: ${a.user || '-'} • ${new Date(a.timestamp || a.created_at).toLocaleString('zh-CN')}</p>
+                        </div>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            } catch (error) {
+                console.error('加载活动数据失败:', error);
+                const container = document.getElementById('recent-activities');
+                container.innerHTML = `
+                    <div class="text-center text-red-500 py-8">
+                        <i data-lucide="alert-circle" class="w-8 h-8 mx-auto mb-2"></i>
+                        <p>加载失败，请稍后重试</p>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            loadActivities();
+        });
+    </script>
+</body>
+</html>
