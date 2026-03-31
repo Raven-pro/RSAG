@@ -5,6 +5,16 @@
 - Login: `npx wrangler login`
 - Ensure `wrangler.toml` exists at project root
 
+## 1.1 Git Auto Deploy (Recommended)
+If you deploy by connecting Git repository in Cloudflare Pages, use these settings:
+- Framework preset: `None`
+- Build command: `npm run build`
+- Build output directory: `public`
+- Root directory: `/` (or keep empty)
+- Do **not** set custom Deploy command (especially avoid `npx wrangler deploy`)
+
+In this repository, `npm run build` only validates Pages Functions bundling and keeps static site output in `public`.
+
 ## 2. Create and bind cloud resources
 
 ### D1
@@ -28,6 +38,9 @@
 
 ## 5. Deploy to Cloudflare Pages
 - `npm run deploy`
+- Do not use `npx wrangler deploy` for this repository (it is a Pages project, not a single Worker entry-point project).
+- If you run command directly, use:
+  - `npx wrangler pages deploy public --project-name rsag-pages`
 
 ## 6. Post-deploy checks
 - Verify public APIs:
