@@ -1,0 +1,26 @@
+name = "rsag-pages"
+compatibility_date = "2026-04-01"
+pages_build_output_dir = "public"
+
+# D1 database binding for admin/public APIs
+[[d1_databases]]
+binding = "DB"
+database_name = "rsag-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# KV binding for chat daily quota
+[[kv_namespaces]]
+binding = "CHAT_COUNT_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# R2 binding for upload APIs
+[[r2_buckets]]
+binding = "UPLOADS_BUCKET"
+bucket_name = "rsag-uploads"
+
+# Cloudflare AI binding used by /api/chat
+[ai]
+binding = "AI"
+
+[vars]
+PUBLIC_UPLOAD_BASE_URL = ""

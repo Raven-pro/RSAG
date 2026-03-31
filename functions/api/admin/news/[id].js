@@ -1,0 +1,119 @@
+import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+
+// GET /api/admin/news/[id]
+export async function onRequestGet(context) {
+    const { request, env, params } = context;
+
+    try {
+        await authenticate(request, env);
+
+        const id = parseInt(params.id || '', 10);
+        if (!Number.isInteger(id) || id <= 0) {
+            return createErrorResponse('无效的新闻 ID', 400);
+        }
+
+        const db = env.DB;
+        await initDatabase(db);
+
+        const news = await db.prepare('SELECT * FROM news WHERE id = ?').bind(id).first();
+        if (!news) {
+            return createErrorResponse('新闻不存在', 404);
+        }
+
+        return createResponse(news);
+    } catch (error) {
+        console.error('获取新闻失败:', error);
+        return createErrorResponse(error.message);
+    }
+}
+
+// PUT /api/admin/news/[id]
+export async function onRequestPut(context) {
+    const { request, env, params } = context;
+
+    try {
+        const user = await authenticate(request, env);
+
+        const id = parseInt(params.id || '', 10);
+        if (!Number.isInteger(id) || id <= 0) {
+            return createErrorResponse('无效的新闻 ID', 400);
+        }
+
+        const data = await request.json();
+        const {
+            title, summary, content, author, publish_date,
+            featured_image, category, tags, status
+        } = data;
+
+        const db = env.DB;
+        await initDatabase(db);
+
+        const existing = await db.prepare('SELECT * FROM news WHERE id = ?').bind(id).first();
+        if (!existing) {
+            return createErrorResponse('新闻不存在', 404);
+        }
+
+        await db.prepare(`
+            UPDATE news SET
+                title = ?, summary = ?, content = ?, author = ?, publish_date = ?,
+                featured_image = ?, category = ?, tags = ?, status = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(
+            title, summary || null, content, author, publish_date,
+            featured_image || null, category, tags || null, status, id
+        ).run();
+
+        await logActivity(db, '更新新闻', 'news', id, user.username, `更新新闻: ${title}`);
+
+        return createResponse({
+            message: '新闻更新成功',
+            frontend_url: `/news/detail.html?id=${id}`
+        });
+    } catch (error) {
+        console.error('更新新闻失败:', error);
+        return createErrorResponse(error.message);
+    }
+}
+
+// DELETE /api/admin/news/[id]
+export async function onRequestDelete(context) {
+    const { request, env, params } = context;
+
+    try {
+        const user = await authenticate(request, env);
+
+        const id = parseInt(params.id || '', 10);
+        if (!Number.isInteger(id) || id <= 0) {
+            return createErrorResponse('无效的新闻 ID', 400);
+        }
+
+        const db = env.DB;
+        await initDatabase(db);
+
+        const existing = await db.prepare('SELECT title FROM news WHERE id = ?').bind(id).first();
+        if (!existing) {
+            return createErrorResponse('新闻不存在', 404);
+        }
+
+        await db.prepare('DELETE FROM news WHERE id = ?').bind(id).run();
+
+        await logActivity(db, '删除新闻', 'news', id, user.username, `删除新闻: ${existing.title}`);
+
+        return createResponse({ message: '新闻删除成功' });
+    } catch (error) {
+        console.error('删除新闻失败:', error);
+        return createErrorResponse(error.message);
+    }
+}
+
+export async function onRequestOptions() {
+    return new Response(null, {
+        status: 200,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        }
+    });
+}

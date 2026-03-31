@@ -5,7 +5,9 @@
   "main": "local-server.js",
   "scripts": {
     "start": "node local-server.js",
-    "dev": "nodemon local-server.js"
+    "dev": "nodemon local-server.js",
+    "cf:dev": "npx wrangler pages dev public",
+    "deploy": "npx wrangler pages deploy public"
   },
   "dependencies": {
     "cors": "^2.8.5",

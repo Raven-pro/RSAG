@@ -45,6 +45,7 @@ export async function initDatabase(db) {
                 volume TEXT,
                 doi TEXT,
                 url TEXT,
+                pdf_url TEXT,
                 abstract TEXT,
                 keywords TEXT,
                 status TEXT DEFAULT 'published',
@@ -101,10 +102,14 @@ export async function initDatabase(db) {
                 file_url TEXT NOT NULL,
                 file_type TEXT NOT NULL,
                 file_size INTEGER,
+                category TEXT,
                 uploaded_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `).run();
+
+        await ensureColumnExists(db, 'publications', 'pdf_url', 'TEXT');
+        await ensureColumnExists(db, 'files', 'category', 'TEXT');
 
         // 创建活动日志表
         await db.prepare(`
@@ -301,6 +306,17 @@ export async function logActivity(db, action, tableName, recordId, user, details
         `).bind(action, tableName, recordId, user, details).run();
     } catch (error) {
         console.error('记录活动日志失败:', error);
+    }
+}
+
+async function ensureColumnExists(db, tableName, columnName, columnType) {
+    try {
+        await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`).run();
+    } catch (error) {
+        const message = String(error?.message || '');
+        if (!message.includes('duplicate column name')) {
+            throw error;
+        }
     }
 }
 

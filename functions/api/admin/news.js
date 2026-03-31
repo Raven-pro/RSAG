@@ -1,5 +1,5 @@
 // 新闻管理API
-import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 // GET /api/admin/news - 获取新闻列表
 export async function onRequestGet(context) {
@@ -110,122 +110,12 @@ export async function onRequestPost(context) {
         
         return createResponse({
             id: result.meta.last_row_id,
-            message: '新闻发布成功'
+            message: '新闻发布成功',
+            frontend_url: `/news/detail.html?id=${result.meta.last_row_id}`
         }, 201);
         
     } catch (error) {
         console.error('发布新闻失败:', error);
-        return createErrorResponse(error.message);
-    }
-}
-
-// GET /api/admin/news/[id] - 获取单个新闻
-export async function onRequestGetSingle(context) {
-    const { request, env, params } = context;
-    
-    try {
-        await authenticate(request, env);
-        
-        const id = params.id;
-        const db = env.DB;
-        
-        const news = await db.prepare('SELECT * FROM news WHERE id = ?')
-            .bind(id)
-            .first();
-        
-        if (!news) {
-            return createErrorResponse('新闻不存在', 404);
-        }
-        
-        return createResponse(news);
-        
-    } catch (error) {
-        console.error('获取新闻失败:', error);
-        return createErrorResponse(error.message);
-    }
-}
-
-// PUT /api/admin/news/[id] - 更新新闻
-export async function onRequestPut(context) {
-    const { request, env, params } = context;
-    
-    try {
-        const user = await authenticate(request, env);
-        
-        const id = params.id;
-        const data = await request.json();
-        const {
-            title, summary, content, author, publish_date,
-            featured_image, category, tags, status
-        } = data;
-        
-        const db = env.DB;
-        
-        // 检查新闻是否存在
-        const existing = await db.prepare('SELECT * FROM news WHERE id = ?')
-            .bind(id)
-            .first();
-        
-        if (!existing) {
-            return createErrorResponse('新闻不存在', 404);
-        }
-        
-        await db.prepare(`
-            UPDATE news SET
-                title = ?, summary = ?, content = ?, author = ?, publish_date = ?,
-                featured_image = ?, category = ?, tags = ?, status = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).bind(
-            title, summary || null, content, author, publish_date,
-            featured_image || null, category, tags || null, status, id
-        ).run();
-        
-        // 记录活动日志
-        await logActivity(
-            db, '更新新闻', 'news', id,
-            user.username, `更新新闻: ${title}`
-        );
-        
-        return createResponse({ message: '新闻更新成功' });
-        
-    } catch (error) {
-        console.error('更新新闻失败:', error);
-        return createErrorResponse(error.message);
-    }
-}
-
-// DELETE /api/admin/news/[id] - 删除新闻
-export async function onRequestDelete(context) {
-    const { request, env, params } = context;
-    
-    try {
-        const user = await authenticate(request, env);
-        
-        const id = params.id;
-        const db = env.DB;
-        
-        // 检查新闻是否存在
-        const existing = await db.prepare('SELECT title FROM news WHERE id = ?')
-            .bind(id)
-            .first();
-        
-        if (!existing) {
-            return createErrorResponse('新闻不存在', 404);
-        }
-        
-        await db.prepare('DELETE FROM news WHERE id = ?').bind(id).run();
-        
-        // 记录活动日志
-        await logActivity(
-            db, '删除新闻', 'news', id,
-            user.username, `删除新闻: ${existing.title}`
-        );
-        
-        return createResponse({ message: '新闻删除成功' });
-        
-    } catch (error) {
-        console.error('删除新闻失败:', error);
         return createErrorResponse(error.message);
     }
 }

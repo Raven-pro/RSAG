@@ -1,5 +1,5 @@
 // 活动日志API
-import { authenticate, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { authenticate, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 // GET /api/admin/activities - 获取最近活动
 export async function onRequestGet(context) {
