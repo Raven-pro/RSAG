@@ -267,6 +267,9 @@
                                 <a class="btn btn-small btn-secondary" href="/news/detail.html?id=${newsItem.id}" target="_blank" rel="noopener noreferrer">
                                     前台
                                 </a>
+                                <button class="btn btn-small btn-secondary" onclick="copyFrontendNewsLink(${newsItem.id})">
+                                    复制链接
+                                </button>
                                 <button class="btn btn-small btn-danger" onclick="deleteNews(${newsItem.id})">
                                     删除
                                 </button>
@@ -426,6 +429,18 @@
                 AdminUtils.showNotification('删除失败，请稍后重试', 'error');
             }
         }
+
+        // 复制新闻前台链接
+        async function copyFrontendNewsLink(id) {
+            const frontendUrl = `${window.location.origin}/news/detail.html?id=${id}`;
+            try {
+                await navigator.clipboard.writeText(frontendUrl);
+                AdminUtils.showNotification('前台新闻链接已复制', 'success');
+            } catch (error) {
+                console.error('复制链接失败:', error);
+                AdminUtils.showNotification('复制失败，请手动复制地址栏链接', 'error');
+            }
+        }
         
         // 隐藏模态框
         function hideModal() {
@@ -532,7 +547,7 @@
                 const url = isEdit ? `/news/${id}` : '/news';
                 const method = isEdit ? 'PUT' : 'POST';
                 
-                await AdminUtils.apiRequest(url, {
+                const result = await AdminUtils.apiRequest(url, {
                     method,
                     body: data
                 });
@@ -541,6 +556,23 @@
                     isEdit ? '新闻更新成功' : '新闻发布成功',
                     'success'
                 );
+
+                const frontendUrl = result?.frontend_url || (result?.id ? `/news/detail.html?id=${result.id}` : '');
+                if (frontendUrl) {
+                    const absoluteUrl = `${window.location.origin}${frontendUrl}`;
+                    if (!isEdit) {
+                        try {
+                            await navigator.clipboard.writeText(absoluteUrl);
+                            AdminUtils.showNotification('已复制前台链接，可直接分享', 'success');
+                        } catch (_) {
+                            // 忽略剪贴板失败，仍允许手动打开
+                        }
+                    }
+
+                    if (confirm('是否立即在新标签页打开前台页面进行检查？')) {
+                        window.open(frontendUrl, '_blank', 'noopener,noreferrer');
+                    }
+                }
                 
                 hideModal();
                 loadNews(currentPage, currentSearch);
@@ -619,6 +651,7 @@
         window.editNews = editNews;
         window.viewNews = viewNews;
         window.deleteNews = deleteNews;
+        window.copyFrontendNewsLink = copyFrontendNewsLink;
         
     </script>
 </body>

@@ -381,6 +381,38 @@ function inferFileCategory(fileType = '') {
   return 'general';
 }
 
+const ALLOWED_DOC_MIME = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
+  'application/zip',
+  'application/x-zip-compressed'
+]);
+
+function isAllowedUploadMime(mime = '') {
+  return mime.startsWith('image/') || ALLOWED_DOC_MIME.has(mime);
+}
+
+function isFileTypeCompatible(uploadType = '', mime = '') {
+  const type = String(uploadType || '').toLowerCase();
+  if (!type || type === 'general') return true;
+  if (type === 'news' || type === 'avatar' || type === 'image') return mime.startsWith('image/');
+  if (type === 'pdf') return mime === 'application/pdf';
+  if (type === 'document') return ALLOWED_DOC_MIME.has(mime);
+  return true;
+}
+
+function removeUploadedFile(filePath) {
+  if (!filePath) return;
+  fs.unlink(filePath, () => {});
+}
+
 const uploadStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) return cb(null, IMAGE_DIR);
@@ -541,7 +573,7 @@ app.post('/api/admin/publications', authenticate, (req, res) => {
   mockData.publications.unshift(publication);
   saveData();
   logActivity('添加论文', 'publications', publication.id, req.user.username, `添加论文: ${publication.title}`);
-  res.status(201).json({ id: publication.id, message: '论文添加成功' });
+  res.status(201).json({ id: publication.id, message: '论文添加成功', frontend_url: '/publications-api.html' });
 });
 
 app.put('/api/admin/publications/:id', authenticate, (req, res) => {
@@ -562,7 +594,7 @@ app.put('/api/admin/publications/:id', authenticate, (req, res) => {
     else cur.type = 'Conference';
   }
   logActivity('更新论文', 'publications', id, req.user.username, `更新论文: ${req.body.title || mockData.publications[index].title}`);
-  res.json({ message: '论文更新成功' });
+  res.json({ message: '论文更新成功', frontend_url: '/publications-api.html' });
 });
 
 app.delete('/api/admin/publications/:id', authenticate, (req, res) => {
@@ -615,7 +647,7 @@ app.post('/api/admin/news', authenticate, (req, res) => {
   mockData.news.unshift(news);
   saveData();
   logActivity('发布新闻', 'news', news.id, req.user.username, `发布新闻: ${news.title}`);
-  res.status(201).json({ id: news.id, message: '新闻发布成功' });
+  res.status(201).json({ id: news.id, message: '新闻发布成功', frontend_url: `/news/detail.html?id=${news.id}` });
 });
 
 app.put('/api/admin/news/:id', authenticate, (req, res) => {
@@ -629,7 +661,7 @@ app.put('/api/admin/news/:id', authenticate, (req, res) => {
   };
   saveData();
   logActivity('更新新闻', 'news', id, req.user.username, `更新新闻: ${req.body.title || mockData.news[index].title}`);
-  res.json({ message: '新闻更新成功' });
+  res.json({ message: '新闻更新成功', frontend_url: `/news/detail.html?id=${id}` });
 });
 
 app.delete('/api/admin/news/:id', authenticate, (req, res) => {
@@ -739,16 +771,28 @@ app.post('/api/admin/upload', authenticate, uploadGeneric.single('file'), (req, 
   if (!req.file) return res.status(400).json({ error: '未收到文件' });
 
   const type = (req.body?.type || '').toString().toLowerCase();
+  const mimeType = req.file.mimetype || '';
+
+  if (!isAllowedUploadMime(mimeType)) {
+    removeUploadedFile(req.file.path);
+    return res.status(400).json({ error: '不支持的文件类型，仅允许图片、PDF 和常见办公文档' });
+  }
+
+  if (!isFileTypeCompatible(type, mimeType)) {
+    removeUploadedFile(req.file.path);
+    return res.status(400).json({ error: '上传类型与文件类型不匹配' });
+  }
+
   const folderName = req.file.destination === IMAGE_DIR ? 'images' : (req.file.destination === PDF_DIR ? 'pdfs' : 'files');
   const fileUrl = `/uploads/${folderName}/${req.file.filename}`;
-  const category = type || inferFileCategory(req.file.mimetype);
+  const category = type || inferFileCategory(mimeType);
 
   const newFile = {
     id: mockData.files.length + 1,
     filename: req.file.filename,
     original_name: req.file.originalname,
     file_url: fileUrl,
-    file_type: req.file.mimetype,
+    file_type: mimeType,
     file_size: req.file.size,
     category,
     uploaded_by: req.user.username,
@@ -784,6 +828,11 @@ app.post('/api/admin/publications/:id/upload-pdf', authenticate, uploadPdf.singl
   const id = parseInt(req.params.id);
   const index = mockData.publications.findIndex(p => p.id === id);
   if (index === -1) return res.status(404).json({ error: '论文不存在' });
+  if (!req.file) return res.status(400).json({ error: '未收到 PDF 文件' });
+  if (req.file.mimetype !== 'application/pdf') {
+    removeUploadedFile(req.file.path);
+    return res.status(400).json({ error: '仅支持 PDF 文件上传' });
+  }
   const fileUrl = `/uploads/pdfs/${req.file.filename}`;
   mockData.publications[index].pdf_url = fileUrl;
   mockData.publications[index].updated_at = new Date().toISOString();

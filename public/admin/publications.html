@@ -241,6 +241,9 @@
                                 <button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">
                                     删除
                                 </button>
+                                <button class="btn btn-small btn-secondary" onclick="copyPublicationsFrontendLink()">
+                                    复制前台链接
+                                </button>
                                 ${pub.pdf_url ? `<a class="btn btn-small btn-secondary" href="${pub.pdf_url}" target="_blank">下载PDF</a>` : ''}
                             </div>
                         </td>
@@ -360,6 +363,18 @@
                 AdminUtils.showNotification('删除失败，请稍后重试', 'error');
             }
         }
+
+        // 复制论文前台入口链接
+        async function copyPublicationsFrontendLink() {
+            const frontendUrl = `${window.location.origin}/publications-api.html`;
+            try {
+                await navigator.clipboard.writeText(frontendUrl);
+                AdminUtils.showNotification('前台论文页链接已复制', 'success');
+            } catch (error) {
+                console.error('复制链接失败:', error);
+                AdminUtils.showNotification('复制失败，请手动复制地址栏链接', 'error');
+            }
+        }
         
         // 隐藏模态框
         function hideModal() {
@@ -407,7 +422,7 @@
                 const url = isEdit ? `/publications/${id}` : '/publications';
                 const method = isEdit ? 'PUT' : 'POST';
                 
-                await AdminUtils.apiRequest(url, {
+                const result = await AdminUtils.apiRequest(url, {
                     method,
                     body: data
                 });
@@ -416,6 +431,21 @@
                     isEdit ? '论文更新成功' : '论文添加成功',
                     'success'
                 );
+
+                const frontendUrl = result?.frontend_url || '/publications-api.html';
+                const absoluteUrl = `${window.location.origin}${frontendUrl}`;
+                if (!isEdit) {
+                    try {
+                        await navigator.clipboard.writeText(absoluteUrl);
+                        AdminUtils.showNotification('已复制前台论文页链接', 'success');
+                    } catch (_) {
+                        // 忽略剪贴板失败，保留后续打开流程
+                    }
+                }
+
+                if (confirm('是否立即在新标签页打开前台论文页检查展示效果？')) {
+                    window.open(frontendUrl, '_blank', 'noopener,noreferrer');
+                }
                 
                 hideModal();
                 loadPublications(currentPage, currentSearch);
@@ -494,6 +524,7 @@
         // 暴露函数到全局作用域
         window.editPublication = editPublication;
         window.deletePublication = deletePublication;
+        window.copyPublicationsFrontendLink = copyPublicationsFrontendLink;
     </script>
 </body>
 </html>

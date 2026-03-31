@@ -1245,6 +1245,69 @@
   "files": [],
   "activities": [
     {
+      "id": 26,
+      "action": "删除新闻",
+      "table_name": "news",
+      "record_id": 6,
+      "user": "admin",
+      "details": "删除新闻: 链接回传测试",
+      "created_at": "2026-03-31T17:15:28.256Z"
+    },
+    {
+      "id": 25,
+      "action": "登录",
+      "table_name": "auth",
+      "record_id": 1,
+      "user": "admin",
+      "details": "用户登录",
+      "created_at": "2026-03-31T17:15:28.195Z"
+    },
+    {
+      "id": 24,
+      "action": "登录",
+      "table_name": "auth",
+      "record_id": 1,
+      "user": "admin",
+      "details": "用户登录",
+      "created_at": "2026-03-31T17:13:39.322Z"
+    },
+    {
+      "id": 23,
+      "action": "添加论文",
+      "table_name": "publications",
+      "record_id": 68,
+      "user": "admin",
+      "details": "添加论文: 链接回传测试论文",
+      "created_at": "2026-03-31T17:13:38.231Z"
+    },
+    {
+      "id": 22,
+      "action": "登录",
+      "table_name": "auth",
+      "record_id": 1,
+      "user": "admin",
+      "details": "用户登录",
+      "created_at": "2026-03-31T17:13:38.172Z"
+    },
+    {
+      "id": 21,
+      "action": "发布新闻",
+      "table_name": "news",
+      "record_id": 6,
+      "user": "admin",
+      "details": "发布新闻: 链接回传测试",
+      "created_at": "2026-03-31T17:13:36.897Z"
+    },
+    {
+      "id": 20,
+      "action": "登录",
+      "table_name": "auth",
+      "record_id": 1,
+      "user": "admin",
+      "details": "用户登录",
+      "created_at": "2026-03-31T17:13:36.846Z"
+    },
+    {
       "id": 19,
       "action": "发布新闻",
       "table_name": "news",
