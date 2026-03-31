@@ -68,3 +68,28 @@ In this repository, `npm run build` only validates Pages Functions bundling and 
 ## Notes
 - Replace placeholder IDs in `wrangler.toml` before deployment.
 - `PUBLIC_UPLOAD_BASE_URL` is optional. If empty, upload API returns same-domain URLs like `/uploads/images/...`.
+
+## Troubleshooting
+
+### Error: still executing `npx wrangler deploy`
+Symptom in build log:
+- `Executing user deploy command: npx wrangler deploy`
+- followed by `Missing entry-point to Worker script or to assets directory`
+
+Cause:
+- Cloudflare project is still configured with a custom Deploy command for Worker-style deployment.
+
+Fix:
+1. Open Cloudflare Dashboard -> Workers & Pages -> your project -> Settings -> Builds & deployments.
+2. Ensure this is a Pages project configuration:
+  - Build command: `npm run build`
+  - Build output directory: `public`
+3. Remove custom Deploy command, or change it to:
+  - `npm run deploy`
+4. Trigger a new deployment (Retry deployment or push a new commit).
+
+Repository safeguard:
+- `npm run deploy` now auto-detects Cloudflare Pages CI (`CF_PAGES=1`) and exits successfully without calling Wrangler API.
+- This avoids token-scope authentication failures during Git auto deploy while preserving local manual deploy capability.
+
+If UI still forces a Deploy command workflow, create a new Pages project (`Create application -> Pages -> Connect to Git`) and reuse this repository/config.

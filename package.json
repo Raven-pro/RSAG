@@ -9,7 +9,7 @@
     "build": "npm run cf:check",
     "cf:check": "npx wrangler pages functions build --outfile .tmp_worker.js && rm -f .tmp_worker.js",
     "cf:dev": "npx wrangler pages dev public",
-    "deploy": "npx wrangler pages deploy public --project-name rsag-pages"
+    "deploy": "node scripts/deploy-pages.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
