@@ -1,5 +1,5 @@
 // 新闻管理API
-import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 // GET /api/admin/news - 获取新闻列表
 export async function onRequestGet(context) {

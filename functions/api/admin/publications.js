@@ -1,5 +1,5 @@
 // 论文管理API
-import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 // GET /api/admin/publications - 获取论文列表
 export async function onRequestGet(context) {
@@ -70,7 +70,7 @@ export async function onRequestPost(context) {
         const data = await request.json();
         const {
             title, authors, journal, year, volume, doi, url,
-            abstract, keywords, status = 'published'
+            pdf_url, abstract, keywords, status = 'published'
         } = data;
         
         // 验证必填字段
@@ -83,12 +83,12 @@ export async function onRequestPost(context) {
         
         const result = await db.prepare(`
             INSERT INTO publications (
-                title, authors, journal, year, volume, doi, url,
+                title, authors, journal, year, volume, doi, url, pdf_url,
                 abstract, keywords, status, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             title, authors, journal, year, volume || null, doi || null,
-            url || null, abstract || null, keywords || null, status, user.username
+            url || null, pdf_url || null, abstract || null, keywords || null, status, user.username
         ).run();
         
         // 记录活动日志
@@ -145,7 +145,7 @@ export async function onRequestPut(context) {
         const data = await request.json();
         const {
             title, authors, journal, year, volume, doi, url,
-            abstract, keywords, status
+            pdf_url, abstract, keywords, status
         } = data;
         
         const db = env.DB;
@@ -162,12 +162,12 @@ export async function onRequestPut(context) {
         await db.prepare(`
             UPDATE publications SET
                 title = ?, authors = ?, journal = ?, year = ?, volume = ?,
-                doi = ?, url = ?, abstract = ?, keywords = ?, status = ?,
+                doi = ?, url = ?, pdf_url = ?, abstract = ?, keywords = ?, status = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `).bind(
             title, authors, journal, year, volume || null, doi || null,
-            url || null, abstract || null, keywords || null, status, id
+            url || null, pdf_url || null, abstract || null, keywords || null, status, id
         ).run();
         
         // 记录活动日志

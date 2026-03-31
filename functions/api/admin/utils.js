@@ -45,6 +45,7 @@ export async function initDatabase(db) {
                 volume TEXT,
                 doi TEXT,
                 url TEXT,
+                pdf_url TEXT,
                 abstract TEXT,
                 keywords TEXT,
                 status TEXT DEFAULT 'published',
@@ -53,6 +54,13 @@ export async function initDatabase(db) {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `).run();
+
+        // 兼容旧表结构：如果 pdf_url 不存在则补列
+        try {
+            await db.prepare(`ALTER TABLE publications ADD COLUMN pdf_url TEXT`).run();
+        } catch (error) {
+            // 列已存在时会抛错，可安全忽略
+        }
 
         // 创建新闻表
         await db.prepare(`
@@ -101,10 +109,18 @@ export async function initDatabase(db) {
                 file_url TEXT NOT NULL,
                 file_type TEXT NOT NULL,
                 file_size INTEGER,
+                category TEXT DEFAULT 'general',
                 uploaded_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `).run();
+
+        // 兼容旧表结构：如果 category 不存在则补列
+        try {
+            await db.prepare(`ALTER TABLE files ADD COLUMN category TEXT DEFAULT 'general'`).run();
+        } catch (error) {
+            // 列已存在时会抛错，可安全忽略
+        }
 
         // 创建活动日志表
         await db.prepare(`

@@ -1,5 +1,5 @@
 // 统计数据API
-import { authenticate, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { authenticate, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 // GET /api/admin/stats - 获取统计数据
 export async function onRequestGet(context) {
