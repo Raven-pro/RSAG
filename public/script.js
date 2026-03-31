@@ -588,6 +588,11 @@
 
         // 显示管理员登录模态框
         function showAdminLogin() {
+            const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
+            if (token) {
+                window.location.href = '/admin/dashboard.html';
+                return;
+            }
             document.getElementById('admin-modal').classList.remove('hidden');
         }
 
@@ -629,12 +634,12 @@
                     // 登录成功
                     adminToken = data.token;
                     currentUser = data.user;
+                    // 同步两个键名，兼容后台页面
                     localStorage.setItem('adminToken', adminToken);
-                    
+                    localStorage.setItem('admin_token', adminToken);
                     hideAdminLogin();
-                    showAdminPanel();
-                    // 登录后自动进入仪表板
-                    setTimeout(() => showAdminSection('dashboard'), 0);
+                    // 直接跳转到后台仪表板，避免二次登录与双侧边栏
+                    window.location.href = '/admin/dashboard.html';
                 } else {
                     // 登录失败
                     errorDiv.textContent = data.error || '登录失败';
@@ -654,9 +659,8 @@
 
         // 显示管理面板
         function showAdminPanel() {
-            document.getElementById('admin-panel').classList.remove('hidden');
-            document.getElementById('admin-user-info').textContent = `欢迎, ${currentUser.username} (${currentUser.role})`;
-            showAdminSection('dashboard');
+            // 保留函数以兼容旧代码，但改为跳转（不再显示内嵌面板，避免与后台页面重复侧栏）
+            window.location.href = '/admin/dashboard.html';
         }
 
         // 显示公共网站

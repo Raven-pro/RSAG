@@ -210,6 +210,7 @@
     <!-- 文件上传 input -->
     <input type="file" id="file-input" accept="image/*" style="display: none;">
 
+    
     <script src="js/admin.js"></script>
     <script>
         let currentPage = 1;
@@ -225,7 +226,9 @@
                 });
                 
                 const response = await AdminUtils.apiRequest(`/news?${params}`);
-                const news = response.news || [];
+                const news = response.news || response.data || [];
+                const totalPages = response.totalPages ?? response.pagination?.totalPages ?? 1;
+                const currentPageFromResponse = response.currentPage ?? response.pagination?.currentPage ?? page;
                 const tbody = document.getElementById('news-tbody');
                 
                 if (news.length === 0) {
@@ -244,6 +247,7 @@
                         <td>
                             <div style="font-weight: 500;">${newsItem.title}</div>
                             ${newsItem.summary ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${newsItem.summary.substring(0, 100)}${newsItem.summary.length > 100 ? '...' : ''}</div>` : ''}
+                            
                         </td>
                         <td>${newsItem.author}</td>
                         <td>${AdminUtils.formatDate(newsItem.publish_date)}</td>
@@ -270,10 +274,10 @@
                 
                 // 更新分页
                 const paginationContainer = document.getElementById('pagination-container');
-                if (response.totalPages > 1) {
+                if (totalPages > 1) {
                     const pagination = AdminUtils.createPagination(
-                        response.currentPage,
-                        response.totalPages,
+                        currentPageFromResponse,
+                        totalPages,
                         (page) => {
                             currentPage = page;
                             loadNews(page, currentSearch);
@@ -608,10 +612,11 @@
             loadNews();
         });
         
-        // 暴露函数到全局作用域
+        // 暴露函数到全局作用域（供行内 onclick 使用）
         window.editNews = editNews;
         window.viewNews = viewNews;
         window.deleteNews = deleteNews;
+        
     </script>
 </body>
 </html>

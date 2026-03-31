@@ -192,10 +192,10 @@
                     <div class="card">
                         <div class="card-body" style="text-align: center;">
                             <div style="margin-bottom: 1rem;">
-                                <img src="${member.photo_url || '/images/default-avatar.png'}" 
+                                  <img src="${member.photo_url || 'https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'}" 
                                      alt="${member.name}" 
                                      style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0;"
-                                     onerror="this.src='/images/default-avatar.png'">
+                                      onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
                             </div>
                             <h4 style="margin: 0 0 0.5rem 0; color: #1e293b;">${member.name}</h4>
                             <p style="margin: 0 0 0.5rem 0; color: var(--tsinghua-purple); font-weight: 500;">${member.title}</p>

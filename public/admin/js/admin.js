@@ -2,19 +2,21 @@
 class AdminUtils {
     static baseURL = '/api/admin';
     
-    // 获取存储的认证令牌
+    // 获取存储的认证令牌（兼容旧键名）
     static getToken() {
-        return localStorage.getItem('admin_token');
+        return localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
     }
     
-    // 设置认证令牌
+    // 设置认证令牌（同时写入两个键，避免跨页面不一致）
     static setToken(token) {
         localStorage.setItem('admin_token', token);
+        localStorage.setItem('adminToken', token);
     }
     
-    // 清除认证令牌
+    // 清除认证令牌（两个键都移除）
     static clearToken() {
         localStorage.removeItem('admin_token');
+        localStorage.removeItem('adminToken');
     }
     
     // 检查是否已登录
@@ -43,7 +45,7 @@ class AdminUtils {
             ...options
         };
         
-        if (config.body && typeof config.body === 'object') {
+        if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {
             config.body = JSON.stringify(config.body);
         }
         
@@ -56,10 +58,12 @@ class AdminUtils {
                 return;
             }
             
-            const data = await response.json();
+            const contentType = response.headers.get('Content-Type') || '';
+            const data = contentType.includes('application/json') ? await response.json() : await response.text();
             
             if (!response.ok) {
-                throw new Error(data.error || '请求失败');
+                const errMsg = typeof data === 'string' ? data : (data.error || '请求失败');
+                throw new Error(errMsg);
             }
             
             return data;

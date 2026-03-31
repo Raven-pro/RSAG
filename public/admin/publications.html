@@ -147,6 +147,16 @@
                         </div>
                         
                         <div class="form-group">
+                            <label class="form-label">论文类别（可多选）</label>
+                            <div style="display:flex; gap: 1rem; flex-wrap: wrap;">
+                                <label><input type="checkbox" name="types" value="SCI"> SCI</label>
+                                <label><input type="checkbox" name="types" value="EI"> EI</label>
+                                <label><input type="checkbox" name="types" value="Conference"> 国际会议</label>
+                                <label><input type="checkbox" name="types" value="DomesticConference"> 国内会议</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label for="status" class="form-label">状态</label>
                             <select id="status" name="status" class="form-select">
                                 <option value="published">已发表</option>
@@ -158,6 +168,7 @@
                         
                         <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
                             <button type="button" class="btn btn-secondary" id="cancel-btn">取消</button>
+                            <button type="button" class="btn btn-secondary" id="upload-pdf-btn">上传PDF</button>
                             <button type="submit" class="btn btn-primary" id="save-btn">
                                 <span id="save-text">保存</span>
                                 <span id="save-loading" class="loading" style="display: none;">
@@ -171,6 +182,8 @@
             </div>
         </div>
     </div>
+
+    <input type="file" id="pdf-input" accept="application/pdf" style="display:none;" />
 
     <script src="js/admin.js"></script>
     <script>
@@ -187,7 +200,9 @@
                 });
                 
                 const response = await AdminUtils.apiRequest(`/publications?${params}`);
-                const publications = response.publications || [];
+                const publications = response.publications || response.data || [];
+                const totalPages = response.totalPages ?? response.pagination?.totalPages ?? 1;
+                const currentPageFromResponse = response.currentPage ?? response.pagination?.currentPage ?? page;
                 const tbody = document.getElementById('publications-tbody');
                 
                 if (publications.length === 0) {
@@ -216,13 +231,14 @@
                             </span>
                         </td>
                         <td>
-                            <div style="display: flex; gap: 0.5rem;">
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">
                                     编辑
                                 </button>
                                 <button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">
                                     删除
                                 </button>
+                                ${pub.pdf_url ? `<a class="btn btn-small btn-secondary" href="${pub.pdf_url}" target="_blank">下载PDF</a>` : ''}
                             </div>
                         </td>
                     </tr>
@@ -230,10 +246,10 @@
                 
                 // 更新分页
                 const paginationContainer = document.getElementById('pagination-container');
-                if (response.totalPages > 1) {
+                if (totalPages > 1) {
                     const pagination = AdminUtils.createPagination(
-                        response.currentPage,
-                        response.totalPages,
+                        currentPageFromResponse,
+                        totalPages,
                         (page) => {
                             currentPage = page;
                             loadPublications(page, currentSearch);
@@ -308,6 +324,11 @@
                         element.value = publication[key] || '';
                     }
                 });
+                // 回填多选 types（兼容 legacy type）
+                const types = Array.isArray(publication.types) ? publication.types : (publication.type ? [publication.type] : []);
+                form.querySelectorAll('input[name="types"]').forEach(cb => {
+                    cb.checked = types.includes(cb.value);
+                });
                 
                 modal.style.display = 'block';
                 document.body.style.overflow = 'hidden';
@@ -375,6 +396,10 @@
             try {
                 const data = Object.fromEntries(formData);
                 delete data.id; // 移除ID字段
+                // 收集多选 types
+                const typeValues = [];
+                form.querySelectorAll('input[name="types"]:checked').forEach(cb => typeValues.push(cb.value));
+                if (typeValues.length) data.types = typeValues;
                 
                 const url = isEdit ? `/publications/${id}` : '/publications';
                 const method = isEdit ? 'PUT' : 'POST';
@@ -400,6 +425,38 @@
                 saveBtn.disabled = false;
                 saveText.style.display = 'block';
                 saveLoading.style.display = 'none';
+            }
+        });
+
+        // 上传PDF
+        document.getElementById('upload-pdf-btn').addEventListener('click', () => {
+            document.getElementById('pdf-input').click();
+        });
+        document.getElementById('pdf-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const id = document.getElementById('publication-id').value;
+            if (!id) {
+                AdminUtils.showNotification('请先保存论文，再上传PDF', 'error');
+                return;
+            }
+            try {
+                const formData = new FormData();
+                formData.append('pdf', file);
+                const token = AdminUtils.getToken();
+                const resp = await fetch(`/api/admin/publications/${id}/upload-pdf`, {
+                    method: 'POST',
+                    headers: { ...(token && { 'Authorization': `Bearer ${token}` }) },
+                    body: formData
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || '上传失败');
+                AdminUtils.showNotification('PDF上传成功', 'success');
+                hideModal();
+                loadPublications(currentPage, currentSearch);
+            } catch (err) {
+                console.error('PDF上传失败:', err);
+                AdminUtils.showNotification('PDF上传失败，请稍后重试', 'error');
             }
         });
         

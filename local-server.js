@@ -1,6 +1,11 @@
 // 本地测试服务器（稳定版）
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+const { execFile } = require('child_process');
+const { publications_data, team_data } = require('./migration_data.js');
 
 const app = express();
 const PORT = 3000;
@@ -9,6 +14,35 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+// 提供 uploads 静态访问
+const UPLOAD_ROOT = path.join(__dirname, 'public', 'uploads');
+const IMAGE_DIR = path.join(UPLOAD_ROOT, 'images');
+const PDF_DIR = path.join(UPLOAD_ROOT, 'pdfs');
+const FILE_DIR = path.join(UPLOAD_ROOT, 'files');
+const LATEX_DIR = path.join(UPLOAD_ROOT, 'latex');
+const LATEX_PROJ_DIR = path.join(LATEX_DIR, 'projects');
+if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+if (!fs.existsSync(IMAGE_DIR)) fs.mkdirSync(IMAGE_DIR, { recursive: true });
+if (!fs.existsSync(PDF_DIR)) fs.mkdirSync(PDF_DIR, { recursive: true });
+if (!fs.existsSync(FILE_DIR)) fs.mkdirSync(FILE_DIR, { recursive: true });
+if (!fs.existsSync(LATEX_DIR)) fs.mkdirSync(LATEX_DIR, { recursive: true });
+if (!fs.existsSync(LATEX_PROJ_DIR)) fs.mkdirSync(LATEX_PROJ_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOAD_ROOT));
+
+// JSON 持久化
+const DATA_FILE = path.join(__dirname, 'data.json');
+function loadData() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return null;
+    const txt = fs.readFileSync(DATA_FILE, 'utf-8');
+    return JSON.parse(txt);
+  } catch { return null; }
+}
+function saveData() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(mockData, null, 2));
+  } catch {}
+}
 
 // ============================
 // Mock 数据
@@ -19,99 +53,7 @@ const users = [
 ];
 
 const mockData = {
-  publications: [
-    {
-      id: 1,
-      title: 'A transient detection framework in nuclear power plants using zero-shot learning based on digital twins',
-      authors: 'Ben Qi; Jun Sun; Zhe Sui; Xingyu Xiao; Jingang Liang*',
-      journal: 'Progress in Nuclear Energy',
-      year: 2025,
-      month: '07',
-      doi: '10.1016/j.pnucene.2025.105848',
-      url: 'https://doi.org/10.1016/j.pnucene.2025.105848',
-      type: 'SCI',
-      status: 'published',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 2,
-      title: 'Advanced full-core modeling of fission product release in pebble-bed high-temperature gas-cooled reactors',
-      authors: 'Chenghao Cao; Junyi Chen; Jingang Liang*; Chuan Li; Jianzhu Cao',
-      journal: 'Annals of Nuclear Energy',
-      year: 2025,
-      month: '06',
-      doi: '10.1016/j.anucene.2025.111240',
-      url: 'https://doi.org/10.1016/j.anucene.2025.111240',
-      type: 'SCI',
-      status: 'published',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 3,
-      title: 'POKER: a new point kernel 3D radiation field characterization code',
-      authors: 'Junyi Chen; Ruihan Li; Yujia Chen; Chenghao Cao; Jingang Liang*',
-      journal: 'Nuclear Engineering and Technology',
-      year: 2025,
-      month: '06',
-      doi: '10.1016/j.net.2024.103410',
-      url: 'https://doi.org/10.1016/j.net.2024.103410',
-      type: 'SCI',
-      status: 'published',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 4,
-      title: 'Enhancing accuracy and efficiency of RMC/SUBCHAN coupling system for BEAVRS',
-      authors: 'Hao Luo; Kaiwen Li; Jie Li; Zhaoyuan Liu; Jingang Liang*; Kan Wang',
-      journal: 'Progress in Nuclear Energy',
-      year: 2025,
-      month: '05',
-      doi: '10.1016/j.pnucene.2025.105666',
-      url: 'https://doi.org/10.1016/j.pnucene.2025.105666',
-      type: 'SCI',
-      status: 'published',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 5,
-      title: 'Dynamic Risk-Informed Framework for Emergency Human Error Prevention',
-      authors: 'Xingyu Xiao; Ben Qi; Peng Chen; Jingang Liang*',
-      journal: 'Reliability Engineering and System Safety',
-      year: 2025,
-      month: '04',
-      doi: '10.1016/j.ress.2025.111080',
-      url: 'https://doi.org/10.1016/j.ress.2025.111080',
-      type: 'SCI',
-      status: 'published',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 6,
-      title: 'High-Fidelity N/T/Pebble Flow Coupling Simulation of HTR-PM',
-      authors: 'Ruihan Li; Junyi Chen; Aixin Zhu; Jingang Liang*',
-      journal: 'Nuclear Science and Engineering',
-      year: 2025,
-      month: '03',
-      doi: '10.1080/00295639.2025.2471712',
-      url: 'https://doi.org/10.1080/00295639.2025.2471712',
-      type: 'SCI',
-      status: 'published',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 7,
-      title: "MC/Sub-Channel Coupling for Xi'an Pulsed Reactor",
-      authors: 'Ruihan Li; Lipeng Wang*; Jingang Liang; Xinyi Zhang; Lixin Chen',
-      journal: 'Annals of Nuclear Energy',
-      year: 2025,
-      month: '01',
-      doi: '10.1016/j.anucene.2024.110882',
-      url: 'https://doi.org/10.1016/j.anucene.2024.110882',
-      type: 'SCI',
-      status: 'published',
-      created_at: new Date().toISOString()
-    }
-  ],
+  publications: [],
   news: [
     {
       id: 1,
@@ -215,39 +157,161 @@ const mockData = {
   activities: []
 };
 
-// 恢复初始迁移数据（如存在）
-try {
-  const migration = require('./migration_data.js');
-  if (migration && Array.isArray(migration.publications_data)) {
-    mockData.publications = migration.publications_data.map((p, idx) => ({
-      id: p.id ?? idx + 1,
-      title: p.title,
-      authors: p.authors,
-      journal: p.journal,
-      year: p.year,
-      month: (p.month !== undefined ? String(p.month) : '12').padStart(2, '0'),
-      type: p.type,
-      doi: p.doi || '',
-      url: p.url || '',
-      status: p.status || 'published',
-      created_at: new Date().toISOString()
-    }));
-  }
-  if (migration && Array.isArray(migration.team_data)) {
-    mockData.team = migration.team_data.map((t, idx) => ({
-      id: t.id ?? idx + 1,
-      name: t.name,
-      title: t.title,
-      research_area: t.research_area || '',
-      photo_url: t.photo_url || '',
-      order_index: t.order_index ?? (idx + 1),
-      status: t.status || 'active',
-      created_at: new Date().toISOString()
-    }));
-  }
-} catch (e) {
-  console.warn('未加载迁移数据（migration_data.js）:', e.message);
+// 先尝试从 data.json 恢复
+const loaded = loadData();
+if (loaded) {
+  try { Object.assign(mockData, loaded); } catch {}
 }
+
+// 从静态 HTML 导入发表列表（当迁移数据不足时）
+function importPublicationsFromHTMLIfNeeded() {
+  try {
+    if (mockData.publications && mockData.publications.length >= 20) return; // 数据已较完整
+    const htmlPath = path.join(__dirname, 'public', 'publications.html');
+    if (!fs.existsSync(htmlPath)) return;
+    const html = fs.readFileSync(htmlPath, 'utf-8');
+
+    function extractSection(sectionTitle) {
+      const idx = html.indexOf(`<h2>${sectionTitle}`);
+      if (idx === -1) return [];
+      const olStart = html.indexOf('<ol>', idx);
+      const olEnd = html.indexOf('</ol>', olStart);
+      if (olStart === -1 || olEnd === -1) return [];
+      const olContent = html.slice(olStart, olEnd);
+      const liRegex = /<li>([\s\S]*?)<\/li>/g;
+      const items = [];
+      let m;
+      while ((m = liRegex.exec(olContent)) !== null) {
+        items.push(m[1]);
+      }
+      return items;
+    }
+
+    function parseLiToPublication(liHtml, primaryType) {
+      // 提取标题（英文引号中的内容）
+      const titleMatch = liHtml.match(/"([^"]+)"/);
+      const title = titleMatch ? titleMatch[1] : '';
+      // 提取期刊/会议
+      const journalMatch = liHtml.match(/<em>(.*?)<\/em>/i);
+      const journal = journalMatch ? journalMatch[1] : '';
+      // 提取 DOI 链接
+      const urlMatch = liHtml.match(/href="(https?:[^\"]+)"/i);
+      const url = urlMatch ? urlMatch[1] : '';
+      // 提取作者（在标题前的一段，以点号分隔）
+      const authorPart = liHtml.split('"')[0];
+      const authors = authorPart.replace(/<[^>]+>/g, '').trim().replace(/\.$/, '');
+      // 提取日期中的年份和月份（格式如 2025-07 或 2024-12）
+      const ymMatch = liHtml.match(/\b(20\d{2})[-\/\.](\d{1,2})\b/);
+      const year = ymMatch ? parseInt(ymMatch[1], 10) : (new Date()).getFullYear();
+      const month = ymMatch ? String(parseInt(ymMatch[2], 10)).padStart(2, '0') : '12';
+
+      const types = [primaryType];
+      return {
+        id: undefined,
+        title,
+        authors,
+        journal,
+        year,
+        month,
+        types,
+        // 兼容旧字段
+        type: primaryType === 'Conference' ? 'Conference' : primaryType,
+        doi: '',
+        url,
+        status: 'published',
+        created_at: new Date().toISOString()
+      };
+    }
+
+    const sciLis = extractSection('SCI (Science Citation Index) Journal Papers');
+    const eiLis = extractSection('EI (Engineering Index) Papers');
+    const imported = [];
+    sciLis.forEach(li => imported.push(parseLiToPublication(li, 'SCI')));
+    eiLis.forEach(li => imported.push(parseLiToPublication(li, 'EI')));
+
+    // 去重：根据标题判断
+    const existedTitles = new Set((mockData.publications || []).map(p => (p.title || '').toLowerCase()));
+    const newOnes = imported.filter(p => p.title && !existedTitles.has(p.title.toLowerCase()));
+    // 赋予新 ID 并加入
+    newOnes.forEach(p => {
+      p.id = (mockData.publications?.length || 0) + 1;
+      mockData.publications.push(p);
+    });
+    if (newOnes.length) {
+      console.log(`已从 publications.html 导入 ${newOnes.length} 篇发表记录`);
+    }
+  } catch (e) {
+    console.warn('导入 publications.html 失败:', e.message);
+  }
+}
+
+importPublicationsFromHTMLIfNeeded();
+// 导入后持久化一次
+saveData();
+
+// 兼容恢复：从 migration_data.js 合并缺失的团队/发表数据（按名称/标题去重）
+function restoreFromMigrationIfNeeded() {
+  let changed = false;
+  try {
+    if (Array.isArray(team_data) && team_data.length) {
+      const existingNames = new Set((mockData.team || []).map(m => (m.name || '').trim()));
+      const toAdd = team_data.filter(m => m && m.name && !existingNames.has(m.name.trim()));
+      if (toAdd.length) {
+        const nextId = (mockData.team && mockData.team.length)
+          ? Math.max(...mockData.team.map(t => t.id || 0)) + 1
+          : 1;
+        toAdd.forEach((m, idx) => {
+          mockData.team.push({
+            id: nextId + idx,
+            name: m.name,
+            title: m.title || m.position || '',
+            research_area: m.research_area || m.research || '',
+            photo_url: m.photo_url || m.photo || '',
+            status: m.status || 'active',
+            order_index: m.order_index || (nextId + idx),
+            created_at: new Date().toISOString()
+          });
+        });
+        changed = true;
+      }
+      // 排序稳定
+      mockData.team = (mockData.team || []).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+    }
+
+    if (Array.isArray(publications_data) && publications_data.length) {
+      const existingTitles = new Set((mockData.publications || []).map(p => (p.title || '').toLowerCase()));
+      const toAddPubs = publications_data.filter(p => p && p.title && !existingTitles.has(p.title.toLowerCase()));
+      if (toAddPubs.length) {
+        const nextIdP = (mockData.publications && mockData.publications.length)
+          ? Math.max(...mockData.publications.map(t => t.id || 0)) + 1
+          : 1;
+        toAddPubs.forEach((p, idx) => {
+          const types = Array.isArray(p.types) ? p.types : (p.type ? [p.type] : []);
+          mockData.publications.push({
+            id: nextIdP + idx,
+            title: p.title || '',
+            authors: p.authors || '',
+            journal: p.journal || '',
+            year: p.year || new Date().getFullYear(),
+            month: p.month ? String(p.month).padStart(2, '0') : '12',
+            types,
+            type: p.type || (types.includes('SCI') ? 'SCI' : (types.includes('EI') ? 'EI' : (types[0] || 'Conference'))),
+            doi: p.doi || '',
+            url: p.url || '',
+            status: p.status || 'published',
+            created_at: new Date().toISOString()
+          });
+        });
+        changed = true;
+      }
+    }
+  } catch (e) {
+    console.warn('恢复迁移数据时出错:', e.message);
+  }
+  if (changed) saveData();
+}
+
+restoreFromMigrationIfNeeded();
 
 // ============================
 // 伪 JWT（与前端 AdminUtils 兼容）
@@ -298,12 +362,38 @@ function logActivity(action, tableName, recordId, user, details = null) {
   if (mockData.activities.length > 50) mockData.activities = mockData.activities.slice(0, 50);
 }
 
+function inferFileCategory(fileType = '') {
+  if (fileType.startsWith('image/')) return 'image';
+  if (fileType.includes('pdf') || fileType.includes('word') || fileType.includes('document') || fileType.includes('excel') || fileType.includes('spreadsheet') || fileType.includes('powerpoint') || fileType.includes('presentation')) {
+    return 'document';
+  }
+  return 'general';
+}
+
+const uploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) return cb(null, IMAGE_DIR);
+    if (file.mimetype === 'application/pdf') return cb(null, PDF_DIR);
+    return cb(null, FILE_DIR);
+  },
+  filename: (req, file, cb) => {
+    const originalName = (file.originalname || 'upload.bin').replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, `${Date.now()}_${originalName}`);
+  }
+});
+const uploadGeneric = multer({ storage: uploadStorage, limits: { fileSize: 50 * 1024 * 1024 } });
+
 // ============================
 // 公开 API（给前台使用）
 // ============================
 app.get('/api/publications', (req, res) => {
   const pubs = mockData.publications
     .filter(p => (p.status || 'published') === 'published')
+    .map(p => ({
+      ...p,
+      // 兼容：如有 types 则回填 type 以供前端过滤
+      type: p.type || (Array.isArray(p.types) && (p.types.includes('SCI') ? 'SCI' : (p.types.includes('EI') ? 'EI' : (p.types.length ? 'Conference' : 'Other'))))
+    }))
     .sort((a, b) => (b.year - a.year) || (parseInt(b.month || '12') - parseInt(a.month || '12')));
   res.json({ publications: pubs });
 });
@@ -414,7 +504,14 @@ app.post('/api/admin/publications', authenticate, (req, res) => {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
+  // 兼容 types 多选 -> 回填 legacy type（优先级：SCI > EI > Conference）
+  if (Array.isArray(publication.types) && !publication.type) {
+    if (publication.types.includes('SCI')) publication.type = 'SCI';
+    else if (publication.types.includes('EI')) publication.type = 'EI';
+    else publication.type = 'Conference';
+  }
   mockData.publications.unshift(publication);
+  saveData();
   logActivity('添加论文', 'publications', publication.id, req.user.username, `添加论文: ${publication.title}`);
   res.status(201).json({ id: publication.id, message: '论文添加成功' });
 });
@@ -428,6 +525,14 @@ app.put('/api/admin/publications/:id', authenticate, (req, res) => {
     ...req.body,
     updated_at: new Date().toISOString()
   };
+  saveData();
+  // 兼容 types 多选 -> 回填 legacy type
+  const cur = mockData.publications[index];
+  if (Array.isArray(cur.types) && !cur.type) {
+    if (cur.types.includes('SCI')) cur.type = 'SCI';
+    else if (cur.types.includes('EI')) cur.type = 'EI';
+    else cur.type = 'Conference';
+  }
   logActivity('更新论文', 'publications', id, req.user.username, `更新论文: ${req.body.title || mockData.publications[index].title}`);
   res.json({ message: '论文更新成功' });
 });
@@ -437,6 +542,7 @@ app.delete('/api/admin/publications/:id', authenticate, (req, res) => {
   const index = mockData.publications.findIndex(p => p.id === id);
   if (index === -1) return res.status(404).json({ error: '论文不存在' });
   const removed = mockData.publications.splice(index, 1)[0];
+  saveData();
   logActivity('删除论文', 'publications', id, req.user.username, `删除论文: ${removed.title}`);
   res.json({ message: '论文删除成功' });
 });
@@ -479,6 +585,7 @@ app.post('/api/admin/news', authenticate, (req, res) => {
     updated_at: new Date().toISOString()
   };
   mockData.news.unshift(news);
+  saveData();
   logActivity('发布新闻', 'news', news.id, req.user.username, `发布新闻: ${news.title}`);
   res.status(201).json({ id: news.id, message: '新闻发布成功' });
 });
@@ -492,6 +599,7 @@ app.put('/api/admin/news/:id', authenticate, (req, res) => {
     ...req.body,
     updated_at: new Date().toISOString()
   };
+  saveData();
   logActivity('更新新闻', 'news', id, req.user.username, `更新新闻: ${req.body.title || mockData.news[index].title}`);
   res.json({ message: '新闻更新成功' });
 });
@@ -501,6 +609,7 @@ app.delete('/api/admin/news/:id', authenticate, (req, res) => {
   const index = mockData.news.findIndex(n => n.id === id);
   if (index === -1) return res.status(404).json({ error: '新闻不存在' });
   const removed = mockData.news.splice(index, 1)[0];
+  saveData();
   logActivity('删除新闻', 'news', id, req.user.username, `删除新闻: ${removed.title}`);
   res.json({ message: '新闻删除成功' });
 });
@@ -534,6 +643,7 @@ app.post('/api/admin/team', authenticate, (req, res) => {
     updated_at: new Date().toISOString()
   };
   mockData.team.push(member);
+  saveData();
   logActivity('添加成员', 'team', member.id, req.user.username, `添加成员: ${member.name}`);
   res.status(201).json({ id: member.id, message: '成员添加成功' });
 });
@@ -547,6 +657,7 @@ app.put('/api/admin/team/:id', authenticate, (req, res) => {
     ...req.body,
     updated_at: new Date().toISOString()
   };
+  saveData();
   logActivity('更新成员', 'team', id, req.user.username, `更新成员: ${req.body.name || mockData.team[index].name}`);
   res.json({ message: '成员信息更新成功' });
 });
@@ -556,6 +667,7 @@ app.delete('/api/admin/team/:id', authenticate, (req, res) => {
   const index = mockData.team.findIndex(t => t.id === id);
   if (index === -1) return res.status(404).json({ error: '成员不存在' });
   const removed = mockData.team.splice(index, 1)[0];
+  saveData();
   logActivity('删除成员', 'team', id, req.user.username, `删除成员: ${removed.name}`);
   res.json({ message: '成员删除成功' });
 });
@@ -569,7 +681,15 @@ app.get('/api/admin/files', authenticate, (req, res) => {
 
   let files = mockData.files;
   if (search) files = files.filter(f => (f.original_name || '').toLowerCase().includes(search));
-  if (type) files = files.filter(f => (f.file_type || '').toLowerCase().includes(type));
+  if (type) {
+    files = files.filter(f => {
+      const fileType = (f.file_type || '').toLowerCase();
+      const category = ((f.category || '').toLowerCase()) || inferFileCategory(fileType);
+      if (type === 'document') return category === 'document';
+      if (type === 'image') return category === 'image';
+      return category === type;
+    });
+  }
 
   const total = files.length;
   const totalPages = Math.max(1, Math.ceil(total / (limit || 1)));
@@ -587,20 +707,30 @@ app.get('/api/admin/files/:id', authenticate, (req, res) => {
   res.json(file);
 });
 
-app.post('/api/admin/upload', authenticate, (req, res) => {
-  // 模拟上传成功
-  const mockFile = {
+app.post('/api/admin/upload', authenticate, uploadGeneric.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '未收到文件' });
+
+  const type = (req.body?.type || '').toString().toLowerCase();
+  const folderName = req.file.destination === IMAGE_DIR ? 'images' : (req.file.destination === PDF_DIR ? 'pdfs' : 'files');
+  const fileUrl = `/uploads/${folderName}/${req.file.filename}`;
+  const category = type || inferFileCategory(req.file.mimetype);
+
+  const newFile = {
     id: mockData.files.length + 1,
-    filename: `mock_file_${Date.now()}.jpg`,
-    original_name: 'uploaded_file.jpg',
-    file_url: '/images/HTR-PM.jpg',
-    file_type: 'image/jpeg',
-    file_size: 1024 * 100,
+    filename: req.file.filename,
+    original_name: req.file.originalname,
+    file_url: fileUrl,
+    file_type: req.file.mimetype,
+    file_size: req.file.size,
+    category,
     uploaded_by: req.user.username,
     created_at: new Date().toISOString()
   };
-  mockData.files.push(mockFile);
-  res.json({ url: mockFile.file_url, message: '文件上传成功' });
+
+  mockData.files.unshift(newFile);
+  saveData();
+  logActivity('上传文件', 'files', newFile.id, req.user.username, `上传文件: ${newFile.original_name}`);
+  res.json({ url: newFile.file_url, file: newFile, message: '文件上传成功' });
 });
 
 app.delete('/api/admin/files/:id', authenticate, (req, res) => {
@@ -608,7 +738,163 @@ app.delete('/api/admin/files/:id', authenticate, (req, res) => {
   const index = mockData.files.findIndex(f => f.id === id);
   if (index === -1) return res.status(404).json({ error: '文件不存在' });
   mockData.files.splice(index, 1);
+  saveData();
   res.json({ message: '文件删除成功' });
+});
+
+// PDF 文献上传（保存到 uploads/pdfs，并把 URL 写入 publications.pdf_url）
+const pdfStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, PDF_DIR),
+  filename: (req, file, cb) => {
+    const safe = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
+    cb(null, safe);
+  }
+});
+const uploadPdf = multer({ storage: pdfStorage, limits: { fileSize: 50 * 1024 * 1024 } });
+
+app.post('/api/admin/publications/:id/upload-pdf', authenticate, uploadPdf.single('pdf'), (req, res) => {
+  const id = parseInt(req.params.id);
+  const index = mockData.publications.findIndex(p => p.id === id);
+  if (index === -1) return res.status(404).json({ error: '论文不存在' });
+  const fileUrl = `/uploads/pdfs/${req.file.filename}`;
+  mockData.publications[index].pdf_url = fileUrl;
+  mockData.publications[index].updated_at = new Date().toISOString();
+  saveData();
+  logActivity('上传PDF', 'publications', id, req.user.username, `上传PDF: ${req.file.originalname}`);
+  res.json({ url: fileUrl, message: 'PDF上传成功' });
+});
+
+// 保存新闻的 LaTeX 源文件
+app.post('/api/admin/news/:id/latex', authenticate, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const index = mockData.news.findIndex(n => n.id === id);
+    if (index === -1) return res.status(404).json({ error: '新闻不存在' });
+    const { latex, filename } = req.body || {};
+    if (!latex || typeof latex !== 'string') {
+      return res.status(400).json({ error: '缺少有效的 latex 内容' });
+    }
+    const safeName = filename && typeof filename === 'string' ? filename.replace(/[^a-zA-Z0-9_\-\.]/g, '_') : `news_${id}_${Date.now()}.tex`;
+    const filePath = path.join(LATEX_DIR, safeName);
+    fs.writeFileSync(filePath, latex, 'utf-8');
+    const url = `/uploads/latex/${safeName}`;
+    mockData.news[index].latex_path = url;
+    mockData.news[index].updated_at = new Date().toISOString();
+    saveData();
+    logActivity('上传LaTeX', 'news', id, req.user.username, `保存 LaTeX: ${safeName}`);
+    res.json({ url, message: 'LaTeX 已保存' });
+  } catch (e) {
+    res.status(500).json({ error: '保存失败' });
+  }
+});
+
+// 编译新闻 LaTeX 为 PDF（需要本机安装 pdflatex）
+app.post('/api/admin/news/:id/latex-build', authenticate, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const index = mockData.news.findIndex(n => n.id === id);
+    if (index === -1) return res.status(404).json({ error: '新闻不存在' });
+    const latexPath = mockData.news[index].latex_path;
+    if (!latexPath) return res.status(400).json({ error: '尚未保存 LaTeX 源稿' });
+
+    const fileName = path.basename(latexPath); // news_xxx.tex
+    const texAbs = path.join(LATEX_DIR, fileName);
+    if (!fs.existsSync(texAbs)) return res.status(404).json({ error: 'LaTeX 文件不存在' });
+
+    const args = ['-interaction=nonstopmode', '-halt-on-error', '-output-directory', LATEX_DIR, texAbs];
+    execFile('pdflatex', args, { cwd: LATEX_DIR, timeout: 120000 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('pdflatex 错误:', err);
+        return res.status(500).json({ error: '编译失败，请检查 LaTeX 源或安装 pdflatex', log: stderr || stdout || String(err) });
+      }
+      const pdfName = fileName.replace(/\.tex$/i, '.pdf');
+      const pdfAbs = path.join(LATEX_DIR, pdfName);
+      if (!fs.existsSync(pdfAbs)) {
+        return res.status(500).json({ error: '编译失败：未生成 PDF', log: stdout });
+      }
+      const url = `/uploads/latex/${pdfName}`;
+      mockData.news[index].latex_pdf_path = url;
+      mockData.news[index].updated_at = new Date().toISOString();
+      saveData();
+      logActivity('编译LaTeX', 'news', id, req.user.username, `生成 PDF: ${pdfName}`);
+      res.json({ url, message: 'PDF 编译成功' });
+    });
+  } catch (e) {
+    res.status(500).json({ error: '编译异常' });
+  }
+});
+
+// ============== LaTeX 在线编辑：项目与文件 API ==============
+function safeName(name) { return String(name).replace(/[^a-zA-Z0-9_\-\.]/g, '_'); }
+function listFilesRecursive(rootDir, baseDir = '') {
+  const result = [];
+  const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+  for (const ent of entries) {
+    const rel = path.join(baseDir, ent.name);
+    const abs = path.join(rootDir, ent.name);
+    if (ent.isDirectory()) {
+      result.push(...listFilesRecursive(abs, rel));
+    } else {
+      result.push(rel);
+    }
+  }
+  return result;
+}
+
+// 列出项目
+app.get('/api/admin/latex/projects', authenticate, (req, res) => {
+  const projects = fs.readdirSync(LATEX_PROJ_DIR, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => ({ name: d.name, path: `/uploads/latex/projects/${d.name}/` }));
+  res.json({ projects });
+});
+
+// 创建项目
+app.post('/api/admin/latex/projects', authenticate, (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: '缺少项目名称' });
+  const safe = safeName(name);
+  const projDir = path.join(LATEX_PROJ_DIR, safe);
+  if (!fs.existsSync(projDir)) fs.mkdirSync(projDir, { recursive: true });
+  // 初始化一个 main.tex
+  const mainTex = path.join(projDir, 'main.tex');
+  if (!fs.existsSync(mainTex)) {
+    fs.writeFileSync(mainTex, '\\documentclass{article}\n\\usepackage{amsmath, amssymb, graphicx}\n\\title{Title}\n\\author{RSAG}\n\\date{\\today}\n\\begin{document}\n\\maketitle\nHello, RSAG! $E=mc^2$.\\end{document}\n');
+  }
+  res.json({ message: '项目已创建', name: safe });
+});
+
+// 列出项目文件
+app.get('/api/admin/latex/projects/:project/files', authenticate, (req, res) => {
+  const proj = safeName(req.params.project);
+  const projDir = path.join(LATEX_PROJ_DIR, proj);
+  if (!fs.existsSync(projDir)) return res.status(404).json({ error: '项目不存在' });
+  const files = listFilesRecursive(projDir);
+  res.json({ files });
+});
+
+// 读取文件
+app.get('/api/admin/latex/projects/:project/file', authenticate, (req, res) => {
+  const proj = safeName(req.params.project);
+  const rel = req.query.path;
+  if (!rel) return res.status(400).json({ error: '缺少文件路径' });
+  const abs = path.join(LATEX_PROJ_DIR, proj, rel);
+  if (!abs.startsWith(path.join(LATEX_PROJ_DIR, proj))) return res.status(400).json({ error: '非法路径' });
+  if (!fs.existsSync(abs)) return res.status(404).json({ error: '文件不存在' });
+  const content = fs.readFileSync(abs, 'utf-8');
+  res.json({ content });
+});
+
+// 保存文件
+app.post('/api/admin/latex/projects/:project/file', authenticate, (req, res) => {
+  const proj = safeName(req.params.project);
+  const { path: rel, content } = req.body || {};
+  if (!rel) return res.status(400).json({ error: '缺少文件路径' });
+  const abs = path.join(LATEX_PROJ_DIR, proj, rel);
+  if (!abs.startsWith(path.join(LATEX_PROJ_DIR, proj))) return res.status(400).json({ error: '非法路径' });
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, content || '', 'utf-8');
+  res.json({ message: '保存成功' });
 });
 
 // ============================

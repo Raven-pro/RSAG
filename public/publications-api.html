@@ -136,12 +136,17 @@
             }
         }
 
-        // 更新统计信息
+        // 更新统计信息（支持多标签）
         function updateStats() {
-            const sciCount = allPublications.filter(p => p.type === 'SCI').length;
-            const eiCount = allPublications.filter(p => p.type === 'EI').length;
-            const conferenceCount = allPublications.filter(p => p.type === 'Conference').length;
-            
+            const hasType = (p, t) => Array.isArray(p.types) ? p.types.includes(t) : p.type === t;
+            const isConference = (p) => Array.isArray(p.types)
+                ? (p.types.includes('Conference') || p.types.includes('DomesticConference'))
+                : p.type === 'Conference';
+
+            const sciCount = allPublications.filter(p => hasType(p, 'SCI')).length;
+            const eiCount = allPublications.filter(p => hasType(p, 'EI')).length;
+            const conferenceCount = allPublications.filter(p => isConference(p)).length;
+
             document.getElementById('total-count').textContent = allPublications.length;
             document.getElementById('sci-count').textContent = sciCount;
             document.getElementById('ei-count').textContent = eiCount;
@@ -155,12 +160,13 @@
             // 根据当前筛选条件过滤论文
             let filteredPublications = allPublications;
             if (currentFilter !== 'all') {
-                const filterMap = {
-                    'sci': 'SCI',
-                    'ei': 'EI',
-                    'conference': 'Conference'
-                };
-                filteredPublications = allPublications.filter(p => p.type === filterMap[currentFilter]);
+                filteredPublications = allPublications.filter(p => {
+                    const types = Array.isArray(p.types) ? p.types : (p.type ? [p.type] : []);
+                    if (currentFilter === 'sci') return types.includes('SCI');
+                    if (currentFilter === 'ei') return types.includes('EI');
+                    if (currentFilter === 'conference') return types.includes('Conference') || types.includes('DomesticConference');
+                    return true;
+                });
             }
             
             // 按年份和月份排序（最新的在前）
@@ -201,13 +207,15 @@
                 `;
                 
                 groupedByYear[year].forEach((pub, index) => {
-                    const typeColor = getTypeColor(pub.type);
+                    const types = Array.isArray(pub.types) ? pub.types : (pub.type ? [pub.type] : []);
+                    const badges = (types.length ? types : ['Other']).map(t => {
+                        const { colorClass, label } = getTypeBadge(t);
+                        return `<span class="inline-block px-3 py-1 text-xs font-medium rounded-full ${colorClass}">${label}</span>`;
+                    }).join(' ');
                     html += `
                         <div class="publication-item bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                             <div class="flex items-start justify-between mb-3">
-                                <span class="inline-block px-3 py-1 text-xs font-medium rounded-full ${typeColor}">
-                                    ${pub.type}
-                                </span>
+                                <div class="flex gap-2 flex-wrap">${badges}</div>
                                 <span class="text-sm text-gray-500">${pub.year}-${pub.month || '12'}</span>
                             </div>
                             <h3 class="text-lg font-semibold text-gray-800 mb-2">${pub.title}</h3>
@@ -232,13 +240,14 @@
             container.innerHTML = html;
         }
 
-        // 获取类型颜色
-        function getTypeColor(type) {
+        // 获取类型徽标
+        function getTypeBadge(type) {
             switch (type) {
-                case 'SCI': return 'bg-blue-100 text-blue-800';
-                case 'EI': return 'bg-green-100 text-green-800';
-                case 'Conference': return 'bg-orange-100 text-orange-800';
-                default: return 'bg-gray-100 text-gray-800';
+                case 'SCI': return { colorClass: 'bg-blue-100 text-blue-800', label: 'SCI' };
+                case 'EI': return { colorClass: 'bg-green-100 text-green-800', label: 'EI' };
+                case 'Conference': return { colorClass: 'bg-orange-100 text-orange-800', label: '国际会议' };
+                case 'DomesticConference': return { colorClass: 'bg-yellow-100 text-yellow-800', label: '国内会议' };
+                default: return { colorClass: 'bg-gray-100 text-gray-800', label: '其他' };
             }
         }
 
