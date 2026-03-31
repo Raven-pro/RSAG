@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                     
                     li.innerHTML = `
-                        <a href="/news/item${item.id}.html" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
+                        <a href="/news/detail.html?id=${encodeURIComponent(item.id)}" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
                             <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline">${item.title}</span><br>
                             <span class="text-sm text-gray-500">${formattedDate}</span>
                         </a>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新闻详情 - RSAG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <main class="container mx-auto max-w-4xl px-4 py-10">
+        <header class="mb-6 flex items-center justify-between gap-4">
+            <a href="/news/total.html" class="text-sm text-purple-700 hover:underline">返回新闻列表</a>
+            <a href="/index.html" class="text-sm text-gray-500 hover:underline">返回首页</a>
+        </header>
+
+        <article class="bg-white border border-gray-200 rounded-xl shadow-sm p-6 md:p-8">
+            <div id="loading" class="text-gray-500">正在加载新闻详情...</div>
+            <div id="error" class="hidden rounded-lg border border-red-200 bg-red-50 p-4 text-red-700"></div>
+
+            <div id="content" class="hidden">
+                <h1 id="news-title" class="text-2xl md:text-3xl font-bold text-purple-800"></h1>
+                <p class="mt-2 text-sm text-gray-500">
+                    <span id="news-date"></span>
+                    <span id="news-author-wrap" class="hidden"> · 作者：<span id="news-author"></span></span>
+                </p>
+
+                <img id="news-image" class="hidden mt-5 w-full max-h-[380px] rounded-lg object-cover" alt="新闻配图">
+
+                <div id="news-summary" class="hidden mt-5 rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-gray-700"></div>
+                <div id="news-body" class="prose mt-6 max-w-none leading-8 text-gray-800"></div>
+            </div>
+        </article>
+    </main>
+
+    <script>
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            if (Number.isNaN(d.getTime())) return dateStr || '';
+            return d.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        function showError(message) {
+            document.getElementById('loading').classList.add('hidden');
+            const err = document.getElementById('error');
+            err.textContent = message;
+            err.classList.remove('hidden');
+        }
+
+        async function loadNewsDetail() {
+            const id = new URLSearchParams(window.location.search).get('id');
+            if (!id) {
+                showError('缺少新闻 ID，请从新闻列表页重新进入。');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/news/${encodeURIComponent(id)}`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('新闻不存在或尚未发布。');
+                    }
+                    throw new Error(`状态码 ${response.status}`);
+                }
+
+                const data = await response.json();
+                const item = data.news;
+                if (!item) {
+                    throw new Error('返回数据格式错误。');
+                }
+
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('content').classList.remove('hidden');
+
+                document.getElementById('news-title').textContent = item.title || '未命名新闻';
+                document.getElementById('news-date').textContent = formatDate(item.publish_date);
+                document.title = `${item.title || '新闻详情'} - RSAG`;
+
+                if (item.author) {
+                    document.getElementById('news-author').textContent = item.author;
+                    document.getElementById('news-author-wrap').classList.remove('hidden');
+                }
+
+                if (item.featured_image) {
+                    const img = document.getElementById('news-image');
+                    img.src = item.featured_image;
+                    img.classList.remove('hidden');
+                }
+
+                if (item.summary) {
+                    const summary = document.getElementById('news-summary');
+                    summary.textContent = item.summary;
+                    summary.classList.remove('hidden');
+                }
+
+                document.getElementById('news-body').innerHTML = item.content || '<p>暂无正文内容。</p>';
+            } catch (error) {
+                showError(`加载新闻失败：${error.message}`);
+            }
+        }
+
+        loadNewsDetail();
+    </script>
+</body>
+</html>

@@ -3,144 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-lang-key="pageTitleAllNews">所有新闻 - INET-RSAG</title>
-    <script src="../script.js" defer> </script>
-    <!-- 链接到你的 Tailwind CSS 文件 -->
-    <link href="/path/to/your/tailwind.css" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- 或者使用 Tailwind CDN (用于开发/原型设计) -->
-    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <title>新闻动态 - RSAG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <main class="container mx-auto max-w-4xl px-4 py-10">
+        <header class="mb-8">
+            <div class="flex items-center justify-between gap-4">
+                <h1 class="text-3xl md:text-4xl font-bold text-purple-800">新闻动态</h1>
+                <a href="/index.html" class="text-sm text-purple-700 hover:underline">返回首页</a>
+            </div>
+            <p class="mt-3 text-sm text-gray-500">本页内容由后台发布新闻自动生成。</p>
+        </header>
+
+        <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5 md:p-6">
+            <ul id="news-list" class="space-y-4">
+                <li class="rounded-lg border border-gray-200 p-4 text-gray-500">正在加载新闻...</li>
+            </ul>
+        </section>
+    </main>
+
     <script>
-        // 可选：如果需要动态定义紫色或通过 CDN 配置
-        /*
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'tsinghua-purple': '#500050', // 示例清华紫十六进制代码
-                    }
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            if (Number.isNaN(d.getTime())) return dateStr || '';
+            return d.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        function stripHtml(html) {
+            if (!html) return '';
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            return (temp.textContent || temp.innerText || '').trim();
+        }
+
+        async function loadNews() {
+            const listEl = document.getElementById('news-list');
+            try {
+                const response = await fetch('/api/news');
+                if (!response.ok) {
+                    throw new Error(`状态码 ${response.status}`);
                 }
+
+                const data = await response.json();
+                const news = Array.isArray(data.news) ? data.news : [];
+
+                if (news.length === 0) {
+                    listEl.innerHTML = '<li class="rounded-lg border border-gray-200 p-4 text-gray-500">暂无新闻。</li>';
+                    return;
+                }
+
+                listEl.innerHTML = news.map(item => {
+                    const summary = item.summary || stripHtml(item.content);
+                    const preview = summary ? (summary.length > 120 ? `${summary.slice(0, 120)}...` : summary) : '暂无摘要';
+                    return `
+                        <li class="rounded-lg border border-gray-200 p-4 hover:border-purple-300 transition-colors">
+                            <a href="/news/detail.html?id=${encodeURIComponent(item.id)}" class="group block">
+                                <h2 class="text-lg md:text-xl font-semibold text-purple-700 group-hover:underline">${item.title || '未命名新闻'}</h2>
+                                <p class="mt-1 text-sm text-gray-500">${formatDate(item.publish_date)}</p>
+                                <p class="mt-2 text-gray-700 leading-7">${preview}</p>
+                            </a>
+                        </li>
+                    `;
+                }).join('');
+            } catch (error) {
+                listEl.innerHTML = `
+                    <li class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+                        加载新闻失败：${error.message}
+                    </li>
+                `;
             }
         }
-        */
+
+        loadNews();
     </script>
-    <style>
-        /* 可选：如果未使用 Tailwind 配置，在此定义清华紫 */
-        /*
-        .text-tsinghua-purple { color: #500050; }
-        .border-tsinghua-purple { border-color: #500050; }
-        */
-    </style>
-</head>
-<body class="bg-gray-50 font-sans">
-
-    <!-- 可选的页眉占位符 -->
-    <!-- <header class="bg-tsinghua-purple text-white p-4">
-        <div class="container mx-auto">
-            <h1 class="text-xl font-semibold">[课题组名称/网站名称]</h1>
-        </div>
-    </header> -->
-
-    <div class="container mx-auto px-4 py-8 md:py-12">
-        <main>
-            <h1 class="text-3xl md:text-4xl font-bold mb-6 md:mb-8 text-tsinghua-purple border-b-2 border-tsinghua-purple pb-3" data-lang-key="allNewsTitle">
-                新闻动态
-            </h1>
-
-            <ul class="space-y-6">
-                <!-- 新闻条目 4 -->
-                <!-- <li>
-                    <a href="/news/test.html" class="block group hover:bg-gray-100 p-4 rounded border border-gray-200 hover:border-gray-300 transition-colors duration-150">
-                        <span class="block font-medium text-xl text-blue-700 group-hover:text-blue-900 group-hover:underline mb-1" data-lang-key="newsItem4Title">欢迎新成员[姓名]加入课题组</span>
-                        <span class="text-sm text-gray-500" data-lang-key="newsItem4Date">2023年09月15日</span>
-                    </a>
-                </li> -->
-                <!-- 新闻条目 3 -->
-
-                <li>
-                    <a href="/news/item4.html" class="block group hover:bg-gray-100 p-4 rounded border border-gray-200 hover:border-gray-300 transition-colors duration-150">
-                        <span class="block font-medium text-xl text-blue-700 group-hover:text-blue-900 group-hover:underline mb-1" data-lang-key="newsItem1Title">祝贺！[学生姓名]荣获[奖项名称]</span>
-                        <span class="text-sm text-gray-500" data-lang-key="newsItem1Date">2025年8月11日</span>
-                        <!-- 可选：添加简短摘要/描述 -->
-                        <!-- <p class="text-gray-700 mt-2 text-sm" data-lang-key="newsItem1Snippet">简要介绍新闻内容...</p> -->
-                    </a>
-                </li>
-                <li>
-                    <a href="/news/item3.html" class="block group hover:bg-gray-100 p-4 rounded border border-gray-200 hover:border-gray-300 transition-colors duration-150">
-                        <span class="block font-medium text-xl text-blue-700 group-hover:text-blue-900 group-hover:underline mb-1" data-lang-key="newsItem3Title">欢迎新成员[姓名]加入课题组</span>
-                        <span class="text-sm text-gray-500" data-lang-key="newsItem3Date">2023年09月15日</span>
-                    </a>
-                </li>
-
-                <!-- 新闻条目 2 -->
-                <li>
-                    <a href="/news/item2.html" class="block group hover:bg-gray-100 p-4 rounded border border-gray-200 hover:border-gray-300 transition-colors duration-150">
-                        <span class="block font-medium text-xl text-blue-700 group-hover:text-blue-900 group-hover:underline mb-1" data-lang-key="newsItem2Title">课题组最新研究成果发表于[期刊名称]</span>
-                        <span class="text-sm text-gray-500" data-lang-key="newsItem2Date">2023年10月20日</span>
-                    </a>
-                </li>
-                <!-- 新闻条目 1 -->
-                <li>
-                    <a href="/news/item1.html" class="block group hover:bg-gray-100 p-4 rounded border border-gray-200 hover:border-gray-300 transition-colors duration-150">
-                        <span class="block font-medium text-xl text-blue-700 group-hover:text-blue-900 group-hover:underline mb-1" data-lang-key="newsItem1Title">祝贺！[学生姓名]荣获[奖项名称]</span>
-                        <span class="text-sm text-gray-500" data-lang-key="newsItem1Date">2023年10月26日</span>
-                        <!-- 可选：添加简短摘要/描述 -->
-                        <!-- <p class="text-gray-700 mt-2 text-sm" data-lang-key="newsItem1Snippet">简要介绍新闻内容...</p> -->
-                    </a>
-                </li>
-
-                <li>
-                    <a href="/news/item0.html" class="block group hover:bg-gray-100 p-4 rounded border border-gray-200 hover:border-gray-300 transition-colors duration-150">
-                        <span class="block font-medium text-xl text-blue-700 group-hover:text-blue-900 group-hover:underline mb-1" data-lang-key="newsItem0Title">祝贺！[学生姓名]荣获[奖项名称]</span>
-                        <span class="text-sm text-gray-500" data-lang-key="newsItem0Date">2023年10月26日</span>
-                        <!-- 可选：添加简短摘要/描述 -->
-                        <!-- <p class="text-gray-700 mt-2 text-sm" data-lang-key="newsItem1Snippet">简要介绍新闻内容...</p> -->
-                    </a>
-                </li>
-
-
-                
-
-                <!-- 在下方添加更多新闻条目 -->
-
-                <!-- 示例新闻条目 4 -->
-                <!-- <li>
-                    <a href="/news/item4.html" class="block group hover:bg-gray-100 p-4 rounded border border-gray-200 hover:border-gray-300 transition-colors duration-150">
-                        <span class="block font-medium text-xl text-blue-700 group-hover:text-blue-900 group-hover:underline mb-1" data-lang-key="newsItem4Title">[教授姓名]受邀参加[会议名称]并作报告</span>
-                        <span class="text-sm text-gray-500" data-lang-key="newsItem4Date">2023年08月28日</span>
-                    </a>
-                </li> -->
-
-                <!-- 示例新闻条目 5 -->
-                <!-- <li>
-                    <a href="/news/item5.html" class="block group hover:bg-gray-100 p-4 rounded border border-gray-200 hover:border-gray-300 transition-colors duration-150">
-                        <span class="block font-medium text-xl text-blue-700 group-hover:text-blue-900 group-hover:underline mb-1" data-lang-key="newsItem5Title">课题组举办年度学术研讨会</span>
-                        <span class="text-sm text-gray-500" data-lang-key="newsItem5Date">2023年07月10日</span>
-                    </a>
-                </li> -->
-
-                <!-- 如果列表很长，在此添加分页 -->
-                <!-- 示例分页占位符 -->
-                <!-- <li class="pt-6">
-                    <nav class="flex justify-center space-x-1">
-                        <a href="#" class="px-3 py-1 rounded bg-gray-200 text-gray-700">« 上一页</a>
-                        <a href="#" class="px-3 py-1 rounded bg-blue-600 text-white">1</a>
-                        <a href="#" class="px-3 py-1 rounded hover:bg-gray-200">2</a>
-                        <a href="#" class="px-3 py-1 rounded hover:bg-gray-200">3</a>
-                        <a href="#" class="px-3 py-1 rounded bg-gray-200 text-gray-700">下一页 »</a>
-                    </nav>
-                </li> -->
-
-            </ul>
-        </main>
-    </div>
-
-    <!-- 可选的页脚占位符 -->
-    <!-- <footer class="bg-gray-200 text-center p-4 mt-12">
-        <p class="text-sm text-gray-600">© 2023 [课题组名称/网站名称]. 版权所有。</p>
-    </footer> -->
-
-    <!-- 你的 JavaScript 文件链接 (如果需要) -->
-    <!-- <script src="/path/to/your/script.js"></script> -->
 </body>
 </html>

@@ -14,6 +14,17 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// 兼容无 .html 后缀的后台路径，避免旧链接或缓存导致 404。
+const ADMIN_PAGES = new Set(['login', 'dashboard', 'publications', 'news', 'team', 'files']);
+app.get('/admin', (req, res) => {
+  res.redirect('/admin/login.html');
+});
+app.get('/admin/:page', (req, res, next) => {
+  const page = String(req.params.page || '').toLowerCase();
+  if (!ADMIN_PAGES.has(page)) return next();
+  res.sendFile(path.join(__dirname, 'public', 'admin', `${page}.html`));
+});
 // 提供 uploads 静态访问
 const UPLOAD_ROOT = path.join(__dirname, 'public', 'uploads');
 const IMAGE_DIR = path.join(UPLOAD_ROOT, 'images');
@@ -404,6 +415,23 @@ app.get('/api/news', (req, res) => {
     .filter(n => (n.status || 'published') === 'published')
     .sort((a, b) => new Date(b.publish_date) - new Date(a.publish_date));
   res.json({ news });
+});
+
+app.get('/api/news/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: '无效的新闻 ID' });
+  }
+
+  const item = mockData.news
+    .map(n => ({ ...n, publish_date: n.publish_date || n.published_date }))
+    .find(n => n.id === id && (n.status || 'published') === 'published');
+
+  if (!item) {
+    return res.status(404).json({ error: '新闻不存在' });
+  }
+
+  return res.json({ news: item });
 });
 
 app.get('/api/team', (req, res) => {
