@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node local-server.js",
     "dev": "nodemon local-server.js",
-    "build": "npm run cf:check",
+    "build": "npm run cf:worker:build",
     "cf:check": "node scripts/check-wrangler-config.js && npm run cf:worker:build",
     "cf:worker:build": "mkdir -p .cf-build && npx wrangler pages functions build functions --outdir .cf-build --project-directory .",
     "cf:dev": "npx wrangler pages dev public",
