@@ -620,7 +620,7 @@
             errorDiv.classList.add('hidden');
             
             try {
-                const response = await fetch('/api/admin/login', {
+                const response = await fetch('/api/admin/auth/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -628,7 +628,14 @@
                     body: JSON.stringify({ username, password })
                 });
                 
-                const data = await response.json();
+                const contentType = response.headers.get("content-type");
+                let data;
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    data = await response.json();
+                } else {
+                    const text = await response.text();
+                    throw new Error(`返回非JSON格式 (${response.status}): ${text.substring(0, 100)}`);
+                }
                 
                 if (response.ok) {
                     // 登录成功
@@ -647,7 +654,7 @@
                 }
             } catch (error) {
                 console.error('登录错误:', error);
-                errorDiv.textContent = '网络错误，请稍后重试';
+                errorDiv.textContent = '网络错误或异常: ' + error.message;
                 errorDiv.classList.remove('hidden');
             } finally {
                 // 恢复按钮状态

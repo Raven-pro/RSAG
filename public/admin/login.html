@@ -70,7 +70,14 @@
                     body: JSON.stringify({ username, password })
                 });
                 
-                const data = await response.json();
+                const contentType = response.headers.get("content-type");
+                let data;
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    data = await response.json();
+                } else {
+                    const text = await response.text();
+                    throw new Error(`非预期返回 (${response.status}): ${text.substring(0, 100)}`);
+                }
                 
                 if (response.ok) {
                     AdminUtils.setToken(data.token);
@@ -85,7 +92,7 @@
                 }
             } catch (error) {
                 console.error('登录错误:', error);
-                AdminUtils.showNotification('网络错误，请稍后重试', 'error');
+                AdminUtils.showNotification('网络错误或异常: ' + error.message, 'error', 6000);
             } finally {
                 // 恢复按钮状态
                 loginBtn.disabled = false;

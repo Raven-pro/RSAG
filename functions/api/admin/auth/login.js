@@ -5,10 +5,10 @@ export async function onRequestPost(context) {
     try {
         const { username, password } = await request.json();
         
-        // 简单的用户验证（在生产环境中应该使用更安全的方式）
+        // 使用环境变量中的凭据，提供默认回退以防未设置
         const validUsers = {
-            'admin': 'rsag2025!', // 管理员账号
-            'editor': 'rsag_edit2025' // 编辑员账号
+            [env.ADMIN_USERNAME || 'admin']: env.ADMIN_PASSWORD || 'rsag2025!', // 管理员账号
+            'editor': env.EDITOR_PASSWORD || 'rsag_edit2025' // 编辑员账号
         };
         
         if (!validUsers[username] || validUsers[username] !== password) {
