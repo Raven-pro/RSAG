@@ -9,12 +9,12 @@ directory = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "rsag-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "05985961-01b7-4081-be32-3ef215027720"
 
 # KV binding for chat daily quota
 [[kv_namespaces]]
 binding = "CHAT_COUNT_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "6cbdaf8065da45718577b785477454f3"
 
 # R2 binding for upload APIs
 [[r2_buckets]]
