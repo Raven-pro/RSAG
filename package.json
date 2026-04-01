@@ -7,7 +7,8 @@
     "start": "node local-server.js",
     "dev": "nodemon local-server.js",
     "build": "npm run cf:check",
-    "cf:check": "npx wrangler pages functions build --outfile .tmp_worker.js && rm -f .tmp_worker.js",
+    "cf:check": "node scripts/check-wrangler-config.js && npm run cf:worker:build",
+    "cf:worker:build": "mkdir -p .cf-build && npx wrangler pages functions build functions --outdir .cf-build --project-directory .",
     "cf:dev": "npx wrangler pages dev public",
     "deploy": "node scripts/deploy-pages.js"
   },
@@ -18,7 +19,8 @@
     "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "wrangler": "^4.79.0"
   },
   "keywords": [
     "nodejs",
