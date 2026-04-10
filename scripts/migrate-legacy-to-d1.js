@@ -610,6 +610,62 @@ WHERE NOT EXISTS (
 `);
     }
 
+    // Collapse duplicate news rows by title and keep the richest bilingual record.
+    sqlParts.push(`
+WITH ranked_news AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (
+            PARTITION BY title
+            ORDER BY
+                CASE WHEN content_en IS NOT NULL AND content_en != '' AND content_en != content THEN 1 ELSE 0 END DESC,
+                CASE WHEN title_en IS NOT NULL AND title_en != '' AND title_en != title THEN 1 ELSE 0 END DESC,
+                LENGTH(content) DESC,
+                id DESC
+        ) AS rn
+    FROM news
+)
+DELETE FROM news
+WHERE id IN (SELECT id FROM ranked_news WHERE rn > 1);
+`);
+
+    // Collapse duplicate members by photo identity first, then exact-name duplicates.
+    sqlParts.push(`
+WITH ranked_member_photo AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(NULLIF(photo_url, ''), name)
+            ORDER BY
+                LENGTH(name) DESC,
+                LENGTH(COALESCE(title, '')) DESC,
+                CASE WHEN photo_url IS NULL OR photo_url = '' THEN 0 ELSE 1 END DESC,
+                CASE WHEN status = 'active' THEN 1 ELSE 0 END DESC,
+                id DESC
+        ) AS rn
+    FROM team_members
+)
+DELETE FROM team_members
+WHERE id IN (SELECT id FROM ranked_member_photo WHERE rn > 1);
+
+WITH ranked_member_name AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (
+            PARTITION BY name
+            ORDER BY
+                CASE WHEN photo_url IS NULL OR photo_url = '' THEN 0 ELSE 1 END DESC,
+                LENGTH(COALESCE(title, '')) DESC,
+                CASE WHEN status = 'active' THEN 1 ELSE 0 END DESC,
+                order_index ASC,
+                id DESC
+        ) AS rn
+    FROM team_members
+)
+DELETE FROM team_members
+WHERE id IN (SELECT id FROM ranked_member_name WHERE rn > 1);
+`);
+
     return {
         sql: `${sqlParts.join('\n')}\n`,
         counts: {

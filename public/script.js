@@ -566,9 +566,8 @@
         });
 
         // --- Initial Setup ---
-        // Check localStorage for saved language preference (optional)
-        const savedLang = localStorage.getItem('preferredLanguage');
-        setLanguage(savedLang === 'en' || savedLang === 'zh' ? savedLang : 'zh');
+        // Site default language is Chinese on first entry.
+        setLanguage('zh');
 
         // 页面初始如存在 hash（例如从后台返回后或外部深链），执行平滑滚动并清理URL
         if (window.location.hash) {

@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function resolveLanguage() {
         const saved = localStorage.getItem('preferredLanguage');
         if (saved === 'zh' || saved === 'en') return saved;
-        return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+        return 'zh';
     }
 
     function formatDate(dateValue, lang) {
