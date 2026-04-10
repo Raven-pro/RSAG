@@ -1,4 +1,5 @@
 import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
 const TYPE_ALIASES = {
@@ -71,6 +72,7 @@ function hydratePublication(row) {
     const types = normalizeTypesInput(row?.types, row?.type);
     return {
         ...row,
+        status: normalizeWorkflowStatus(row?.status, 'draft'),
         type: normalizePrimaryType(types, row?.type),
         types
     };
@@ -118,7 +120,8 @@ export async function onRequestPut(context) {
         const data = await request.json();
         const {
             title, authors, journal, year, volume, doi, url,
-            abstract, keywords, type, types, status
+            abstract, keywords, type, types, status,
+            scheduled_publish_at
         } = data;
 
         const normalizedTypes = normalizeTypesInput(types, type);
@@ -132,16 +135,26 @@ export async function onRequestPut(context) {
             return createErrorResponse('论文不存在', 404);
         }
 
+        const workflow = buildWorkflowOnUpdate({
+            existing,
+            status,
+            scheduledPublishAt: scheduled_publish_at,
+            username: user.username
+        });
+
         await db.prepare(`
             UPDATE publications SET
                 title = ?, authors = ?, journal = ?, year = ?, volume = ?,
                 doi = ?, url = ?, abstract = ?, keywords = ?, type = ?, types = ?, status = ?,
+                scheduled_publish_at = ?, submitted_at = ?, reviewed_by = ?, reviewed_at = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `).bind(
             title, authors, journal, year, volume || null, doi || null,
             url || null, abstract || null, keywords || null,
-            normalizedType, serializeTypes(normalizedTypes), status, id
+            normalizedType, serializeTypes(normalizedTypes), workflow.status,
+            workflow.scheduled_publish_at, workflow.submitted_at, workflow.reviewed_by, workflow.reviewed_at,
+            id
         ).run();
 
         await logActivity(db, '更新论文', 'publications', id, user.username, `更新论文: ${title}`);

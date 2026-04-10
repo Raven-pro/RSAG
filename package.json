@@ -6,7 +6,9 @@
     "build": "npm run cf:worker:build",
     "cf:worker:build": "mkdir -p .cf-build && npx wrangler pages functions build functions --outdir .cf-build --project-directory .",
     "cf:dev": "npx wrangler pages dev public",
-    "deploy": "node scripts/deploy-pages.js"
+    "cf:check": "node scripts/predeploy-check.js",
+    "deploy": "node scripts/deploy-pages.js",
+    "deploy:manual": "npm run cf:check && npm run deploy"
   },
   "dependencies": {
     "cors": "^2.8.5",

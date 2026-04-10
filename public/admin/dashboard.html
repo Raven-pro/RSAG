@@ -131,6 +131,17 @@
                 </div>
             </div>
 
+            <!-- 工作流看板 -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h3>内容工作流看板</h3>
+                </div>
+                <div class="card-body">
+                    <div id="workflow-summary" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.9rem; margin-bottom: 1rem;"></div>
+                    <div id="workflow-board" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem;"></div>
+                </div>
+            </div>
+
             <!-- 最近活动 -->
             <div class="card" style="margin-top: 2rem;">
                 <div class="card-header">
@@ -205,17 +216,29 @@
             `).join('');
         }
 
-        function buildLinePath(values, chartWidth, chartHeight, leftPad, topPad, innerWidth, innerHeight, maxValue) {
-            if (!values.length) return '';
-            const points = values.map((value, index) => {
+        function buildSeriesPoints(values, leftPad, topPad, innerWidth, innerHeight, maxValue) {
+            if (!values.length) return [];
+            return values.map((value, index) => {
                 const x = values.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (values.length - 1);
                 const y = topPad + innerHeight - ((Number(value) || 0) / maxValue) * innerHeight;
-                return `${x},${y}`;
+                return { x, y, value: Number(value) || 0, index };
             });
+        }
+
+        function buildLinePath(points) {
+            if (!points.length) return '';
             if (points.length === 1) {
-                return `M ${points[0]} L ${points[0]}`;
+                return `M ${points[0].x},${points[0].y} L ${points[0].x},${points[0].y}`;
             }
-            return `M ${points.join(' L ')}`;
+            return `M ${points.map((point) => `${point.x},${point.y}`).join(' L ')}`;
+        }
+
+        function buildPointDots(points, color, strokeColor) {
+            return points.map((point) => `
+                <circle cx="${point.x}" cy="${point.y}" r="3.1" fill="${color}" stroke="${strokeColor}" stroke-width="1.4">
+                    <title>${point.value}</title>
+                </circle>
+            `).join('');
         }
 
         function renderTrendRows(stats) {
@@ -232,12 +255,12 @@
                 return;
             }
 
-            const width = 860;
-            const height = 280;
+            const width = 920;
+            const height = 330;
             const leftPad = 42;
             const rightPad = 14;
             const topPad = 16;
-            const bottomPad = 34;
+            const bottomPad = 84;
             const innerWidth = width - leftPad - rightPad;
             const innerHeight = height - topPad - bottomPad;
 
@@ -250,17 +273,24 @@
                 `;
             }).join('');
 
-            const pubPath = buildLinePath(publications, width, height, leftPad, topPad, innerWidth, innerHeight, maxValue);
-            const newsPath = buildLinePath(news, width, height, leftPad, topPad, innerWidth, innerHeight, maxValue);
-            const filesPath = buildLinePath(files, width, height, leftPad, topPad, innerWidth, innerHeight, maxValue);
+            const pubPoints = buildSeriesPoints(publications, leftPad, topPad, innerWidth, innerHeight, maxValue);
+            const newsPoints = buildSeriesPoints(news, leftPad, topPad, innerWidth, innerHeight, maxValue);
+            const filesPoints = buildSeriesPoints(files, leftPad, topPad, innerWidth, innerHeight, maxValue);
 
-            const xTicks = [0, Math.floor((dates.length - 1) / 2), dates.length - 1]
-                .filter((v, i, arr) => dates.length > 0 && arr.indexOf(v) === i)
-                .map((index) => {
-                    const x = dates.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (dates.length - 1);
-                    return `<text x="${x}" y="${height - 10}" font-size="11" fill="#64748b" text-anchor="middle">${dates[index].slice(5)}</text>`;
-                })
-                .join('');
+            const pubPath = buildLinePath(pubPoints);
+            const newsPath = buildLinePath(newsPoints);
+            const filesPath = buildLinePath(filesPoints);
+
+            const xGrid = dates.map((_, index) => {
+                const x = dates.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (dates.length - 1);
+                return `<line x1="${x}" y1="${topPad}" x2="${x}" y2="${topPad + innerHeight}" stroke="#f1f5f9" />`;
+            }).join('');
+
+            const xTicks = dates.map((date, index) => {
+                const x = dates.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (dates.length - 1);
+                const y = height - 16;
+                return `<text x="${x}" y="${y}" font-size="10" fill="#64748b" text-anchor="end" transform="rotate(-55 ${x} ${y})">${date.slice(5)}</text>`;
+            }).join('');
 
             container.innerHTML = `
                 <div style="display:flex; gap:1.25rem; flex-wrap:wrap; margin-bottom:0.75rem; font-size:0.83rem; color:#334155;">
@@ -269,11 +299,15 @@
                     <span style="display:inline-flex; align-items:center; gap:0.4rem;"><span style="width:10px; height:10px; border-radius:50%; background:#f59e0b;"></span>文件</span>
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:12px; padding:0.5rem; background:#ffffff; overflow-x:auto;">
-                    <svg viewBox="0 0 ${width} ${height}" style="width:100%; min-width:680px; display:block;" role="img" aria-label="运营趋势折线图">
+                    <svg viewBox="0 0 ${width} ${height}" style="width:100%; min-width:760px; display:block;" role="img" aria-label="运营趋势折线图">
                         ${yGrid}
+                        ${xGrid}
                         <path d="${pubPath}" fill="none" stroke="#5b21b6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
                         <path d="${newsPath}" fill="none" stroke="#10b981" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
                         <path d="${filesPath}" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                        ${buildPointDots(pubPoints, '#5b21b6', '#ede9fe')}
+                        ${buildPointDots(newsPoints, '#10b981', '#d1fae5')}
+                        ${buildPointDots(filesPoints, '#f59e0b', '#fef3c7')}
                         ${xTicks}
                     </svg>
                 </div>
@@ -307,6 +341,73 @@
                             <div style="height:100%; width:${width}%; background:${color};"></div>
                         </div>
                         <div style="font-weight:600; color:#1e293b; text-align:right;">${item.count}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderWorkflowBoard(stats) {
+            const summary = document.getElementById('workflow-summary');
+            const board = document.getElementById('workflow-board');
+            const workflow = stats?.workflow || {};
+            const totals = workflow.totals || {};
+
+            const summaryCards = [
+                { label: '待审核总量', value: Number(totals.pendingReview) || 0, color: '#d97706' },
+                { label: '到期待发布', value: Number(totals.dueScheduled) || 0, color: '#2563eb' },
+                { label: '超3天待审核', value: Number(totals.stalePendingReview) || 0, color: '#dc2626' }
+            ];
+
+            summary.innerHTML = summaryCards.map(card => `
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:0.8rem 0.9rem;">
+                    <div style="font-size:0.82rem; color:#64748b;">${card.label}</div>
+                    <div style="font-size:1.45rem; font-weight:700; color:${card.color}; margin-top:0.2rem;">${card.value}</div>
+                </div>
+            `).join('');
+
+            const modules = [
+                {
+                    key: 'news',
+                    title: '新闻流程',
+                    link: 'news.html',
+                    data: workflow.news || {}
+                },
+                {
+                    key: 'publications',
+                    title: '论文流程',
+                    link: 'publications.html',
+                    data: workflow.publications || {}
+                }
+            ];
+
+            const statuses = [
+                { key: 'draft', label: '草稿', color: '#64748b' },
+                { key: 'pending_review', label: '待审核', color: '#d97706' },
+                { key: 'scheduled', label: '定时发布', color: '#2563eb' },
+                { key: 'published', label: '已发布', color: '#059669' }
+            ];
+
+            board.innerHTML = modules.map(module => {
+                const rows = statuses.map(status => {
+                    const value = Number(module.data?.[status.key]) || 0;
+                    return `
+                        <a href="${module.link}?status=${status.key}" style="display:flex; justify-content:space-between; align-items:center; text-decoration:none; border:1px solid #e2e8f0; border-radius:8px; padding:0.55rem 0.65rem; background:#ffffff;">
+                            <span style="font-size:0.85rem; color:#334155;">${status.label}</span>
+                            <span style="font-weight:700; color:${status.color};">${value}</span>
+                        </a>
+                    `;
+                }).join('');
+
+                return `
+                    <div style="border:1px solid #e2e8f0; border-radius:12px; padding:0.85rem; background:#fcfdff;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.65rem;">
+                            <div style="font-weight:700; color:#0f172a;">${module.title}</div>
+                            <a href="${module.link}" style="font-size:0.8rem; color:#2563eb; text-decoration:none;">进入管理</a>
+                        </div>
+                        <div style="display:grid; gap:0.5rem;">
+                            ${rows}
+                        </div>
+                        <div style="margin-top:0.65rem; font-size:0.78rem; color:#64748b;">总量：${Number(module.data?.total) || 0}，到期待发布：${Number(module.data?.dueScheduled) || 0}</div>
                     </div>
                 `;
             }).join('');
@@ -357,6 +458,7 @@
                 renderTrendSummary(stats);
                 renderTrendRows(stats);
                 renderPublicationTypeDistribution(stats);
+                renderWorkflowBoard(stats);
                 renderActivities(stats.recentActivities || []);
 
                 const lastUpdate = stats.lastUpdate ? new Date(stats.lastUpdate).toLocaleString('zh-CN') : '-';

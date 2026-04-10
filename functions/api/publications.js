@@ -61,9 +61,12 @@ export async function onRequestGet(context) {
         await initDatabase(db);
 
         const result = await db.prepare(`
-            SELECT id, title, authors, journal, year, volume, doi, url, abstract, keywords, type, types, status, created_at, updated_at
+             SELECT id, title, authors, journal, year, volume, doi, url, abstract, keywords,
+                 type, types, status, scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
+                 created_at, updated_at
             FROM publications
-            WHERE status = 'published'
+             WHERE status = 'published'
+             OR (status = 'scheduled' AND scheduled_publish_at IS NOT NULL AND datetime(scheduled_publish_at) <= datetime('now'))
             ORDER BY year DESC, created_at DESC
         `).all();
 

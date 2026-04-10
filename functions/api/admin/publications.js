@@ -1,5 +1,6 @@
 // 论文管理API
 import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { normalizeWorkflowStatus, parseWorkflowStatusFilter, buildWorkflowOnCreate } from './workflow.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
 const TYPE_ALIASES = {
@@ -72,6 +73,7 @@ function hydratePublication(row) {
     const types = normalizeTypesInput(row?.types, row?.type);
     return {
         ...row,
+        status: normalizeWorkflowStatus(row?.status, 'draft'),
         type: normalizePrimaryType(types, row?.type),
         types
     };
@@ -90,6 +92,7 @@ export async function onRequestGet(context) {
         const limit = parseInt(url.searchParams.get('limit') || '10');
         const search = url.searchParams.get('search') || '';
         const type = normalizeTypeValue(url.searchParams.get('type') || '');
+        const status = parseWorkflowStatusFilter(url.searchParams.get('status') || '');
         
         const db = env.DB;
         
@@ -109,6 +112,11 @@ export async function onRequestGet(context) {
         if (type) {
             whereConditions.push('(type = ? OR types LIKE ?)');
             params.push(type, `%"${type}"%`);
+        }
+
+        if (status) {
+            whereConditions.push('status = ?');
+            params.push(status);
         }
 
         if (whereConditions.length > 0) {
@@ -143,7 +151,8 @@ export async function onRequestGet(context) {
             },
             filters: {
                 search,
-                type
+                type,
+                status
             }
         });
         
@@ -164,7 +173,9 @@ export async function onRequestPost(context) {
         const data = await request.json();
         const {
             title, authors, journal, year, volume, doi, url,
-            abstract, keywords, type, types, status = 'published'
+            abstract, keywords, type, types,
+            status = 'draft',
+            scheduled_publish_at
         } = data;
         
         // 验证必填字段
@@ -177,16 +188,25 @@ export async function onRequestPost(context) {
         
         const normalizedTypes = normalizeTypesInput(types, type);
         const normalizedType = normalizePrimaryType(normalizedTypes, type);
+        const workflow = buildWorkflowOnCreate({
+            status,
+            scheduledPublishAt: scheduled_publish_at,
+            username: user.username
+        });
 
         const result = await db.prepare(`
             INSERT INTO publications (
                 title, authors, journal, year, volume, doi, url,
-                abstract, keywords, type, types, status, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                abstract, keywords, type, types, status,
+                scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
+                created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             title, authors, journal, year, volume || null, doi || null,
             url || null, abstract || null, keywords || null,
-            normalizedType, serializeTypes(normalizedTypes), status, user.username
+            normalizedType, serializeTypes(normalizedTypes), workflow.status,
+            workflow.scheduled_publish_at, workflow.submitted_at, workflow.reviewed_by, workflow.reviewed_at,
+            user.username
         ).run();
         
         // 记录活动日志

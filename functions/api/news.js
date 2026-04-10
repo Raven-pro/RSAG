@@ -13,10 +13,13 @@ export async function onRequestGet(context) {
         await initDatabase(db);
 
         const result = await db.prepare(`
-            SELECT id, title, summary, content, author, publish_date, featured_image, category, tags, status, created_at, updated_at
+            SELECT id, title, summary, content, author, publish_date, featured_image, category, tags, status,
+                   scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
+                   created_at, updated_at
             FROM news
             WHERE status = 'published'
-            ORDER BY publish_date DESC, created_at DESC
+               OR (status = 'scheduled' AND scheduled_publish_at IS NOT NULL AND datetime(scheduled_publish_at) <= datetime('now'))
+            ORDER BY COALESCE(scheduled_publish_at, publish_date) DESC, created_at DESC
         `).all();
 
         return createResponse({ news: result.results || [] });

@@ -18,9 +18,15 @@ export async function onRequestGet(context) {
         await initDatabase(db);
 
         const news = await db.prepare(`
-            SELECT id, title, summary, content, author, publish_date, featured_image, category, tags, status, created_at, updated_at
+                        SELECT id, title, summary, content, author, publish_date, featured_image, category, tags, status,
+                                     scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
+                                     created_at, updated_at
             FROM news
-            WHERE id = ? AND status = 'published'
+                        WHERE id = ?
+                            AND (
+                                status = 'published'
+                                OR (status = 'scheduled' AND scheduled_publish_at IS NOT NULL AND datetime(scheduled_publish_at) <= datetime('now'))
+                            )
         `).bind(id).first();
 
         if (!news) {

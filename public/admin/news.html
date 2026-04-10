@@ -49,8 +49,25 @@
                         <input type="text" class="search-input" placeholder="搜索新闻标题..." id="search-input">
                         <div class="search-icon">🔍</div>
                     </div>
+                    <select id="status-filter" class="form-select" style="width:auto; margin-left:1rem;">
+                        <option value="">全部状态</option>
+                        <option value="draft">草稿</option>
+                        <option value="pending_review">待审核</option>
+                        <option value="published">已发布</option>
+                        <option value="scheduled">定时发布</option>
+                    </select>
                 </div>
                 <div class="toolbar-right">
+                    <select id="bulk-status" class="form-select" style="width:auto;">
+                        <option value="">批量改状态</option>
+                        <option value="draft">草稿</option>
+                        <option value="pending_review">待审核</option>
+                        <option value="published">已发布</option>
+                        <option value="scheduled">定时发布</option>
+                    </select>
+                    <button class="btn btn-secondary" id="bulk-apply-btn" disabled>
+                        应用(0)
+                    </button>
                     <button class="btn btn-primary" id="add-news-btn">
                         ➕ 发布新闻
                     </button>
@@ -64,6 +81,7 @@
                         <table class="table" id="news-table">
                             <thead>
                                 <tr>
+                                    <th style="width: 42px;"><input type="checkbox" id="select-all-news"></th>
                                     <th>标题</th>
                                     <th>作者</th>
                                     <th>发布日期</th>
@@ -73,7 +91,7 @@
                             </thead>
                             <tbody id="news-tbody">
                                 <tr>
-                                    <td colspan="5" style="text-align: center; padding: 2rem;">
+                                    <td colspan="6" style="text-align: center; padding: 2rem;">
                                         <div class="spinner" style="margin: 0 auto 1rem;"></div>
                                         加载中...
                                     </td>
@@ -153,11 +171,18 @@
                             <div class="form-group">
                                 <label for="status" class="form-label">状态</label>
                                 <select id="status" name="status" class="form-select">
-                                    <option value="published">已发布</option>
                                     <option value="draft">草稿</option>
+                                    <option value="pending_review">待审核</option>
+                                    <option value="published">已发布</option>
                                     <option value="scheduled">定时发布</option>
                                 </select>
                             </div>
+                        </div>
+
+                        <div class="form-group" id="scheduled-publish-group" style="display:none;">
+                            <label for="scheduled_publish_at" class="form-label">定时发布时间 *</label>
+                            <input type="datetime-local" id="scheduled_publish_at" name="scheduled_publish_at" class="form-input">
+                            <div style="color:#64748b; font-size:0.75rem; margin-top:0.35rem;">仅在状态为“定时发布”时生效</div>
                         </div>
                         
                         <div class="form-group">
@@ -215,14 +240,120 @@
     <script>
         let currentPage = 1;
         let currentSearch = '';
+        let currentStatus = '';
+        const selectedNewsIds = new Set();
+        const workflowStatuses = ['draft', 'pending_review', 'published', 'scheduled'];
+
+        function toDatetimeLocalValue(value) {
+            if (!value) return '';
+            const dt = new Date(value);
+            if (Number.isNaN(dt.getTime())) return '';
+            const pad = (n) => String(n).padStart(2, '0');
+            const y = dt.getFullYear();
+            const m = pad(dt.getMonth() + 1);
+            const d = pad(dt.getDate());
+            const hh = pad(dt.getHours());
+            const mm = pad(dt.getMinutes());
+            return `${y}-${m}-${d}T${hh}:${mm}`;
+        }
+
+        function updateScheduledFieldVisibility() {
+            const statusValue = document.getElementById('status').value;
+            const group = document.getElementById('scheduled-publish-group');
+            if (statusValue === 'scheduled') {
+                group.style.display = 'block';
+            } else {
+                group.style.display = 'none';
+                document.getElementById('scheduled_publish_at').value = '';
+            }
+        }
+
+        function applyInitialFiltersFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const status = String(params.get('status') || '').trim();
+            const search = String(params.get('search') || '').trim();
+
+            if (workflowStatuses.includes(status)) {
+                currentStatus = status;
+                document.getElementById('status-filter').value = status;
+            }
+
+            if (search) {
+                currentSearch = search;
+                document.getElementById('search-input').value = search;
+            }
+        }
+
+        function resetNewsSelection() {
+            selectedNewsIds.clear();
+            syncNewsSelectionControls();
+        }
+
+        function syncNewsSelectionControls() {
+            const applyBtn = document.getElementById('bulk-apply-btn');
+            const status = document.getElementById('bulk-status').value;
+            const count = selectedNewsIds.size;
+
+            applyBtn.disabled = !(count > 0 && status);
+            applyBtn.textContent = `应用(${count})`;
+
+            const selectAll = document.getElementById('select-all-news');
+            const rowCheckboxes = Array.from(document.querySelectorAll('.news-row-select'));
+            const checkedCount = rowCheckboxes.filter((cb) => cb.checked).length;
+            selectAll.checked = rowCheckboxes.length > 0 && checkedCount === rowCheckboxes.length;
+            selectAll.indeterminate = checkedCount > 0 && checkedCount < rowCheckboxes.length;
+        }
+
+        async function applyBulkNewsStatus() {
+            const status = document.getElementById('bulk-status').value;
+            const ids = Array.from(selectedNewsIds);
+
+            if (!status || !ids.length) {
+                AdminUtils.showNotification('请先选择目标状态和记录', 'error');
+                return;
+            }
+
+            let scheduledPublishAt = null;
+            if (status === 'scheduled') {
+                const input = prompt('请输入定时发布时间（格式：YYYY-MM-DDTHH:mm）');
+                if (!input) {
+                    return;
+                }
+                scheduledPublishAt = input.trim();
+            }
+
+            const confirmed = await AdminUtils.showConfirm(`确认将 ${ids.length} 条新闻更新为“${getStatusText(status)}”吗？`);
+            if (!confirmed) return;
+
+            try {
+                const payload = {
+                    ids,
+                    status,
+                    ...(scheduledPublishAt && { scheduled_publish_at: scheduledPublishAt })
+                };
+                const result = await AdminUtils.apiRequest('/news/batch', {
+                    method: 'POST',
+                    body: payload
+                });
+
+                AdminUtils.showNotification(result.message || '批量更新成功', 'success');
+                document.getElementById('select-all-news').checked = false;
+                resetNewsSelection();
+                loadNews(currentPage, currentSearch, currentStatus);
+            } catch (error) {
+                console.error('批量更新新闻状态失败:', error);
+                AdminUtils.showNotification('批量更新失败，请稍后重试', 'error');
+            }
+        }
         
         // 加载新闻列表
-        async function loadNews(page = 1, search = '') {
+        async function loadNews(page = 1, search = '', status = '') {
             try {
                 const params = new URLSearchParams({
                     page: page.toString(),
                     limit: '10',
-                    ...(search && { search })
+                    ...(search && { search }),
+                    ...(status && { status })
                 });
                 
                 const response = await AdminUtils.apiRequest(`/news?${params}`);
@@ -234,16 +365,18 @@
                 if (news.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="5" style="text-align: center; padding: 2rem; color: #64748b;">
-                                ${search ? '未找到匹配的新闻' : '暂无新闻数据'}
+                            <td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">
+                                ${(search || status) ? '未找到匹配的新闻' : '暂无新闻数据'}
                             </td>
                         </tr>
                     `;
+                    resetNewsSelection();
                     return;
                 }
                 
                 tbody.innerHTML = news.map(newsItem => `
                     <tr>
+                        <td><input type="checkbox" class="news-row-select" data-id="${newsItem.id}"></td>
                         <td>
                             <div style="font-weight: 500;">${newsItem.title}</div>
                             ${newsItem.summary ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${newsItem.summary.substring(0, 100)}${newsItem.summary.length > 100 ? '...' : ''}</div>` : ''}
@@ -277,6 +410,7 @@
                         </td>
                     </tr>
                 `).join('');
+                resetNewsSelection();
                 
                 // 更新分页
                 const paginationContainer = document.getElementById('pagination-container');
@@ -286,7 +420,7 @@
                         totalPages,
                         (page) => {
                             currentPage = page;
-                            loadNews(page, currentSearch);
+                            loadNews(page, currentSearch, currentStatus);
                         }
                     );
                     paginationContainer.innerHTML = '';
@@ -305,7 +439,8 @@
         function getStatusClass(status) {
             const statusMap = {
                 published: 'status-success',
-                draft: 'status-warning',
+                draft: 'status-error',
+                pending_review: 'status-warning',
                 scheduled: 'status-warning'
             };
             return statusMap[status] || 'status-error';
@@ -316,6 +451,7 @@
             const statusMap = {
                 published: '已发布',
                 draft: '草稿',
+                pending_review: '待审核',
                 scheduled: '定时发布'
             };
             return statusMap[status] || status;
@@ -334,6 +470,8 @@
             // 设置默认发布日期为今天
             document.getElementById('publish_date').value = new Date().toISOString().split('T')[0];
             document.getElementById('author').value = '管理员';
+            document.getElementById('status').value = 'draft';
+            updateScheduledFieldVisibility();
             
             modal.style.display = 'block';
             document.body.style.overflow = 'hidden';
@@ -356,11 +494,15 @@
                     if (element) {
                         if (key === 'publish_date' && news[key]) {
                             element.value = new Date(news[key]).toISOString().split('T')[0];
+                        } else if (key === 'scheduled_publish_at' && news[key]) {
+                            element.value = toDatetimeLocalValue(news[key]);
                         } else {
                             element.value = news[key] || '';
                         }
                     }
                 });
+
+                updateScheduledFieldVisibility();
                 
                 // 更新图片预览
                 updateImagePreview();
@@ -422,7 +564,7 @@
                 });
                 
                 AdminUtils.showNotification('新闻删除成功', 'success');
-                loadNews(currentPage, currentSearch);
+                loadNews(currentPage, currentSearch, currentStatus);
                 
             } catch (error) {
                 console.error('删除新闻失败:', error);
@@ -534,6 +676,11 @@
             const saveBtn = document.getElementById('save-btn');
             const saveText = document.getElementById('save-text');
             const saveLoading = document.getElementById('save-loading');
+
+            if (formData.get('status') === 'scheduled' && !formData.get('scheduled_publish_at')) {
+                AdminUtils.showNotification('请选择定时发布时间', 'error');
+                return;
+            }
             
             // 显示加载状态
             saveBtn.disabled = true;
@@ -575,7 +722,7 @@
                 }
                 
                 hideModal();
-                loadNews(currentPage, currentSearch);
+                loadNews(currentPage, currentSearch, currentStatus);
                 
             } catch (error) {
                 console.error('保存新闻失败:', error);
@@ -594,6 +741,7 @@
         document.getElementById('preview-btn').addEventListener('click', previewNews);
         document.getElementById('close-preview-btn').addEventListener('click', hidePreviewModal);
         document.getElementById('upload-image-btn').addEventListener('click', uploadImage);
+        document.getElementById('status').addEventListener('change', updateScheduledFieldVisibility);
         
         // 图片预览
         document.getElementById('featured_image').addEventListener('input', updateImagePreview);
@@ -622,12 +770,53 @@
         const debouncedSearch = AdminUtils.debounce((search) => {
             currentSearch = search;
             currentPage = 1;
-            loadNews(1, search);
+            loadNews(1, search, currentStatus);
         }, 300);
         
         searchInput.addEventListener('input', (e) => {
             debouncedSearch(e.target.value.trim());
         });
+
+        document.getElementById('status-filter').addEventListener('change', (e) => {
+            currentStatus = e.target.value;
+            currentPage = 1;
+            loadNews(1, currentSearch, currentStatus);
+        });
+
+        document.getElementById('select-all-news').addEventListener('change', (e) => {
+            const checked = e.target.checked;
+            document.querySelectorAll('.news-row-select').forEach((cb) => {
+                cb.checked = checked;
+                const id = Number.parseInt(cb.dataset.id, 10);
+                if (!Number.isFinite(id)) return;
+                if (checked) {
+                    selectedNewsIds.add(id);
+                } else {
+                    selectedNewsIds.delete(id);
+                }
+            });
+            syncNewsSelectionControls();
+        });
+
+        document.getElementById('news-tbody').addEventListener('change', (e) => {
+            if (!e.target.classList.contains('news-row-select')) {
+                return;
+            }
+            const id = Number.parseInt(e.target.dataset.id, 10);
+            if (!Number.isFinite(id)) return;
+            if (e.target.checked) {
+                selectedNewsIds.add(id);
+            } else {
+                selectedNewsIds.delete(id);
+            }
+            syncNewsSelectionControls();
+        });
+
+        document.getElementById('bulk-status').addEventListener('change', () => {
+            syncNewsSelectionControls();
+        });
+
+        document.getElementById('bulk-apply-btn').addEventListener('click', applyBulkNewsStatus);
         
         // 模态框点击外部关闭
         document.getElementById('news-modal').addEventListener('click', (e) => {
@@ -644,7 +833,9 @@
         
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', () => {
-            loadNews();
+            applyInitialFiltersFromQuery();
+            syncNewsSelectionControls();
+            loadNews(1, currentSearch, currentStatus);
         });
         
         // 暴露函数到全局作用域（供行内 onclick 使用）

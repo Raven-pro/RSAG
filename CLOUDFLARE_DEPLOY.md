@@ -1,95 +1,127 @@
-# Cloudflare Deployment Guide
+# Cloudflare 部署手册（可直接执行）
 
-## 1. Prerequisites
-- Install Wrangler CLI: `npm i -g wrangler` or use `npx wrangler`
-- Login: `npx wrangler login`
-- Ensure `wrangler.toml` exists at project root
+本项目已按 Cloudflare Pages + Functions 结构整理完成，按本文步骤可直接部署。
 
-## 1.1 Git Auto Deploy (Recommended)
-If you deploy by connecting Git repository in Cloudflare Pages, use these settings:
-- Framework preset: `None`
-- Build command: `npm run build`
-- Build output directory: `public`
-- Root directory: `/` (or keep empty)
-- Do **not** set custom Deploy command (especially avoid `npx wrangler deploy`)
+## 0. 项目信息
+- Pages 项目名建议统一为：`rsag2`
+- 静态目录：`public`
+- Functions 目录：`functions`
+- 配置文件：`wrangler.toml`
 
-In this repository, `npm run build` only validates Pages Functions bundling and keeps static site output in `public`.
+## 1. 本地准备
+1. 安装依赖
+   - `npm ci`
+2. 登录 Cloudflare
+   - `npx wrangler login`
+3. 部署前检查
+   - `npm run cf:check`
 
-## 2. Create and bind cloud resources
+如果 `cf:check` 失败，请先修复后再继续。
 
-### D1
-1. `npx wrangler d1 create rsag-db`
-2. Copy `database_id` into `wrangler.toml` `[[d1_databases]]`
+## 2. 创建或确认 Cloudflare 资源
+如果你已经创建过同名资源，可跳过创建步骤，仅保留“确认绑定”。
 
-### KV
-1. `npx wrangler kv namespace create CHAT_COUNT_KV`
-2. Copy returned `id` into `wrangler.toml` `[[kv_namespaces]]`
+### 2.1 D1
+1. 创建
+   - `npx wrangler d1 create rsag-db`
+2. 将返回的 `database_id` 写入 [wrangler.toml](wrangler.toml) 的 `[[d1_databases]]`
 
-### R2
-1. `npx wrangler r2 bucket create rsag-uploads`
-2. Confirm `[[r2_buckets]]` uses `bucket_name = "rsag-uploads"`
+### 2.2 KV
+1. 创建
+   - `npx wrangler kv namespace create CHAT_COUNT_KV`
+2. 将返回的 `id` 写入 [wrangler.toml](wrangler.toml) 的 `[[kv_namespaces]]`
 
-## 3. Configure secrets
-- `npx wrangler secret put JWT_SECRET`
-- `npx wrangler secret put OPENAI_API_KEY`
+### 2.3 R2
+1. 创建
+   - `npx wrangler r2 bucket create rsag-uploads`
+2. 确认 [wrangler.toml](wrangler.toml) 中 `[[r2_buckets]]` 为：
+   - `binding = "UPLOADS_BUCKET"`
+   - `bucket_name = "rsag-uploads"`
 
-## 4. Local pages/functions preview
-- `npm run cf:dev`
+## 3. 配置 Pages Secrets（必须）
+以下命令请在项目根目录执行，并使用你的 Pages 项目名。
 
-## 5. Deploy to Cloudflare Pages
-- `npm run deploy`
-- Do not use `npx wrangler deploy` for this repository (it is a Pages project, not a single Worker entry-point project).
-- If you run command directly, use:
-  - `npx wrangler pages deploy public --project-name rsag-pages`
+1. JWT 与后台账号
+   - `npx wrangler pages secret put JWT_SECRET --project-name rsag2`
+   - `npx wrangler pages secret put ADMIN_USERNAME --project-name rsag2`
+   - `npx wrangler pages secret put ADMIN_PASSWORD --project-name rsag2`
+   - `npx wrangler pages secret put EDITOR_PASSWORD --project-name rsag2`
+2. 聊天能力（可选但建议）
+   - `npx wrangler pages secret put OPENAI_API_KEY --project-name rsag2`
+3. 上传访问前缀（可选）
+   - `npx wrangler pages secret put PUBLIC_UPLOAD_BASE_URL --project-name rsag2`
 
-## 6. Post-deploy checks
-- Verify public APIs:
-  - `/api/news`
-  - `/api/news/{id}`
-  - `/api/publications`
-  - `/api/team`
-- Verify admin APIs:
-  - `/api/admin/auth/login`
-  - `/api/admin/news`
-  - `/api/admin/news/{id}`
-  - `/api/admin/publications`
-  - `/api/admin/publications/{id}`
-  - `/api/admin/publications/{id}/upload-pdf`
-  - `/api/admin/team`
-  - `/api/admin/team/{id}`
-  - `/api/admin/files`
-  - `/api/admin/files/{id}`
-  - `/api/admin/upload`
-- Verify chat endpoint:
-  - `/api/chat`
-- Verify uploaded file access endpoint:
-  - `/uploads/{key}` (served by `functions/uploads/[[path]].js`)
+说明：
+- 如果不配置 `OPENAI_API_KEY`，聊天接口会不可用。
+- 如果不配置后台账号 secrets，会使用代码默认回退账号，不建议用于生产环境。
 
-## Notes
-- Replace placeholder IDs in `wrangler.toml` before deployment.
-- `PUBLIC_UPLOAD_BASE_URL` is optional. If empty, upload API returns same-domain URLs like `/uploads/images/...`.
+## 4. Cloudflare Pages 控制台构建设置（Git 自动部署）
+推荐方式是“连接 Git 仓库自动部署”。
 
-## Troubleshooting
+请在 Pages 项目中确认：
+1. Framework preset：`None`
+2. Build command：`npm run build`
+3. Build output directory：`public`
+4. Root directory：`/`（或留空）
+5. 不要配置自定义 Deploy command，尤其不要填 `npx wrangler deploy`
 
-### Error: still executing `npx wrangler deploy`
-Symptom in build log:
-- `Executing user deploy command: npx wrangler deploy`
-- followed by `Missing entry-point to Worker script or to assets directory`
+## 5. 两种发布方式
 
-Cause:
-- Cloudflare project is still configured with a custom Deploy command for Worker-style deployment.
+### 5.1 Git 自动部署（推荐）
+1. 推送代码到仓库分支
+2. Pages 自动执行构建并发布
 
-Fix:
-1. Open Cloudflare Dashboard -> Workers & Pages -> your project -> Settings -> Builds & deployments.
-2. Ensure this is a Pages project configuration:
-  - Build command: `npm run build`
-  - Build output directory: `public`
-3. Remove custom Deploy command, or change it to:
-  - `npm run deploy`
-4. Trigger a new deployment (Retry deployment or push a new commit).
+### 5.2 本地手动发布
+1. 执行
+   - `npm run deploy:manual`
+2. 该命令会先执行 `cf:check`，再执行 Pages 发布
 
-Repository safeguard:
-- `npm run deploy` now auto-detects Cloudflare Pages CI (`CF_PAGES=1`) and exits successfully without calling Wrangler API.
-- This avoids token-scope authentication failures during Git auto deploy while preserving local manual deploy capability.
+## 6. 发布后验收清单
 
-If UI still forces a Deploy command workflow, create a new Pages project (`Create application -> Pages -> Connect to Git`) and reuse this repository/config.
+### 6.1 公开接口
+- `/api/news`
+- `/api/news/{id}`
+- `/api/publications`
+- `/api/team`
+
+### 6.2 管理接口
+- `/api/admin/auth/login`
+- `/api/admin/news`
+- `/api/admin/news/{id}`
+- `/api/admin/news/batch`
+- `/api/admin/publications`
+- `/api/admin/publications/{id}`
+- `/api/admin/publications/batch`
+- `/api/admin/publications/{id}/upload-pdf`
+- `/api/admin/team`
+- `/api/admin/files`
+- `/api/admin/upload`
+- `/api/admin/stats`
+
+### 6.3 页面功能
+- 管理后台登录
+- 新闻与论文的工作流状态流转
+- 批量状态更新
+- 定时发布到点可见
+- 仪表板工作流看板
+
+## 7. 常见问题
+
+### 7.1 构建日志出现 wrangler deploy 相关报错
+原因：Pages 项目被错误配置成 Worker 风格 deploy 命令。
+
+修复：
+1. 打开 Pages 项目设置 -> Builds & deployments
+2. 删除自定义 Deploy command
+3. 只保留 Build command: `npm run build`
+4. 重试部署
+
+### 7.2 本地 cf:dev 偶发中断
+如果你启用了 AI 远程绑定，本地网络波动可能导致超时中断。建议：
+1. 以 `npm run build` 作为必选构建校验
+2. 数据逻辑验证优先使用 D1 本地 SQL
+
+### 7.3 上传链接无法访问
+请检查：
+1. `UPLOADS_BUCKET` 绑定是否生效
+2. `PUBLIC_UPLOAD_BASE_URL` 是否配置正确（可留空使用同域 `/uploads/...`）

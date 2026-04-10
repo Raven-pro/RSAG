@@ -7,6 +7,11 @@ const TYPE_ALIASES = {
     '国际会议': 'Conference',
     '国内会议': 'DomesticConference'
 };
+const WORKFLOW_STATUSES = ['draft', 'pending_review', 'scheduled', 'published'];
+const WORKFLOW_ALIASES = {
+    submitted: 'pending_review',
+    accepted: 'published'
+};
 
 function parseRangeDays(rawValue) {
     const parsed = Number.parseInt(String(rawValue || ''), 10);
@@ -157,6 +162,33 @@ function buildPublicationTypeDistribution(rows) {
     }));
 }
 
+function normalizeWorkflowStatus(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    const mapped = WORKFLOW_ALIASES[raw] || raw;
+    return WORKFLOW_STATUSES.includes(mapped) ? mapped : 'draft';
+}
+
+function buildWorkflowSummary(rows, extras = {}) {
+    const result = {
+        draft: 0,
+        pending_review: 0,
+        scheduled: 0,
+        published: 0,
+        total: 0,
+        dueScheduled: Number(extras.dueScheduled) || 0,
+        stalePendingReview: Number(extras.stalePendingReview) || 0
+    };
+
+    for (const row of rows || []) {
+        const status = normalizeWorkflowStatus(row?.status);
+        const count = Number.parseInt(row?.count, 10) || 0;
+        result[status] += count;
+        result.total += count;
+    }
+
+    return result;
+}
+
 // GET /api/admin/stats - 获取统计数据
 export async function onRequestGet(context) {
     const { request, env } = context;
@@ -182,7 +214,13 @@ export async function onRequestGet(context) {
             newsTrendRows,
             filesTrendRows,
             publicationTypeRows,
-            recentActivities
+            recentActivities,
+            publicationWorkflowRows,
+            newsWorkflowRows,
+            duePublicationScheduled,
+            dueNewsScheduled,
+            stalePublicationPending,
+            staleNewsPending
         ] = await Promise.all([
             db.prepare('SELECT COUNT(*) as count FROM publications').first(),
             db.prepare('SELECT COUNT(*) as count FROM news WHERE status = "published"').first(),
@@ -215,11 +253,54 @@ export async function onRequestGet(context) {
                 FROM activity_logs
                 ORDER BY created_at DESC
                 LIMIT 8
-            `).all()
+            `).all(),
+            db.prepare('SELECT status, COUNT(*) as count FROM publications GROUP BY status').all(),
+            db.prepare('SELECT status, COUNT(*) as count FROM news GROUP BY status').all(),
+            db.prepare(`
+                SELECT COUNT(*) as count
+                FROM publications
+                WHERE status = 'scheduled'
+                  AND scheduled_publish_at IS NOT NULL
+                  AND datetime(scheduled_publish_at) <= datetime('now')
+            `).first(),
+            db.prepare(`
+                SELECT COUNT(*) as count
+                FROM news
+                WHERE status = 'scheduled'
+                  AND scheduled_publish_at IS NOT NULL
+                  AND datetime(scheduled_publish_at) <= datetime('now')
+            `).first(),
+            db.prepare(`
+                SELECT COUNT(*) as count
+                FROM publications
+                WHERE status = 'pending_review'
+                  AND submitted_at IS NOT NULL
+                  AND datetime(submitted_at) <= datetime('now', '-3 day')
+            `).first(),
+            db.prepare(`
+                SELECT COUNT(*) as count
+                FROM news
+                WHERE status = 'pending_review'
+                  AND submitted_at IS NOT NULL
+                  AND datetime(submitted_at) <= datetime('now', '-3 day')
+            `).first()
         ]);
 
         const buckets = getDateBuckets(rangeDays);
         const publicationTypeDistribution = buildPublicationTypeDistribution(publicationTypeRows.results || []);
+        const publicationWorkflow = buildWorkflowSummary(publicationWorkflowRows.results || [], {
+            dueScheduled: duePublicationScheduled?.count,
+            stalePendingReview: stalePublicationPending?.count
+        });
+        const newsWorkflow = buildWorkflowSummary(newsWorkflowRows.results || [], {
+            dueScheduled: dueNewsScheduled?.count,
+            stalePendingReview: staleNewsPending?.count
+        });
+        const workflowTotals = {
+            pendingReview: publicationWorkflow.pending_review + newsWorkflow.pending_review,
+            dueScheduled: publicationWorkflow.dueScheduled + newsWorkflow.dueScheduled,
+            stalePendingReview: publicationWorkflow.stalePendingReview + newsWorkflow.stalePendingReview
+        };
         
         return createResponse({
             publications: publicationsCount.count,
@@ -235,6 +316,11 @@ export async function onRequestGet(context) {
             },
             distributions: {
                 publicationTypes: publicationTypeDistribution
+            },
+            workflow: {
+                publications: publicationWorkflow,
+                news: newsWorkflow,
+                totals: workflowTotals
             },
             recentActivities: recentActivities.results || [],
             lastUpdate: new Date().toISOString()

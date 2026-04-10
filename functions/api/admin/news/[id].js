@@ -1,4 +1,12 @@
 import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
+
+function hydrateNewsRow(row) {
+    return {
+        ...row,
+        status: normalizeWorkflowStatus(row?.status, 'draft')
+    };
+}
 
 // GET /api/admin/news/[id]
 export async function onRequestGet(context) {
@@ -20,7 +28,7 @@ export async function onRequestGet(context) {
             return createErrorResponse('新闻不存在', 404);
         }
 
-        return createResponse(news);
+        return createResponse(hydrateNewsRow(news));
     } catch (error) {
         console.error('获取新闻失败:', error);
         return createErrorResponse(error.message);
@@ -42,7 +50,8 @@ export async function onRequestPut(context) {
         const data = await request.json();
         const {
             title, summary, content, author, publish_date,
-            featured_image, category, tags, status
+            featured_image, category, tags, status,
+            scheduled_publish_at
         } = data;
 
         const db = env.DB;
@@ -53,15 +62,25 @@ export async function onRequestPut(context) {
             return createErrorResponse('新闻不存在', 404);
         }
 
+        const workflow = buildWorkflowOnUpdate({
+            existing,
+            status,
+            scheduledPublishAt: scheduled_publish_at,
+            username: user.username
+        });
+
         await db.prepare(`
             UPDATE news SET
                 title = ?, summary = ?, content = ?, author = ?, publish_date = ?,
                 featured_image = ?, category = ?, tags = ?, status = ?,
+                scheduled_publish_at = ?, submitted_at = ?, reviewed_by = ?, reviewed_at = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `).bind(
             title, summary || null, content, author, publish_date,
-            featured_image || null, category, tags || null, status, id
+            featured_image || null, category, tags || null,
+            workflow.status, workflow.scheduled_publish_at, workflow.submitted_at, workflow.reviewed_by, workflow.reviewed_at,
+            id
         ).run();
 
         await logActivity(db, '更新新闻', 'news', id, user.username, `更新新闻: ${title}`);

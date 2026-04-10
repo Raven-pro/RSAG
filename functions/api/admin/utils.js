@@ -51,6 +51,10 @@ export async function initDatabase(db) {
                 abstract TEXT,
                 keywords TEXT,
                 status TEXT DEFAULT 'published',
+                scheduled_publish_at DATETIME,
+                submitted_at DATETIME,
+                reviewed_by TEXT,
+                reviewed_at DATETIME,
                 created_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -70,6 +74,10 @@ export async function initDatabase(db) {
                 category TEXT DEFAULT 'general',
                 tags TEXT,
                 status TEXT DEFAULT 'published',
+                scheduled_publish_at DATETIME,
+                submitted_at DATETIME,
+                reviewed_by TEXT,
+                reviewed_at DATETIME,
                 created_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -113,7 +121,21 @@ export async function initDatabase(db) {
         await ensureColumnExists(db, 'publications', 'type', 'TEXT');
         await ensureColumnExists(db, 'publications', 'types', 'TEXT');
         await ensureColumnExists(db, 'publications', 'pdf_url', 'TEXT');
+        await ensureColumnExists(db, 'publications', 'scheduled_publish_at', 'DATETIME');
+        await ensureColumnExists(db, 'publications', 'submitted_at', 'DATETIME');
+        await ensureColumnExists(db, 'publications', 'reviewed_by', 'TEXT');
+        await ensureColumnExists(db, 'publications', 'reviewed_at', 'DATETIME');
+        await ensureColumnExists(db, 'news', 'scheduled_publish_at', 'DATETIME');
+        await ensureColumnExists(db, 'news', 'submitted_at', 'DATETIME');
+        await ensureColumnExists(db, 'news', 'reviewed_by', 'TEXT');
+        await ensureColumnExists(db, 'news', 'reviewed_at', 'DATETIME');
         await ensureColumnExists(db, 'files', 'category', 'TEXT');
+
+        // 兼容历史状态值，统一映射到新工作流状态
+        await db.prepare("UPDATE publications SET status = 'pending_review' WHERE lower(status) = 'submitted'").run();
+        await db.prepare("UPDATE publications SET status = 'published' WHERE lower(status) = 'accepted'").run();
+        await db.prepare("UPDATE news SET status = 'pending_review' WHERE lower(status) = 'submitted'").run();
+        await db.prepare("UPDATE news SET status = 'published' WHERE lower(status) = 'accepted'").run();
 
         // 创建活动日志表
         await db.prepare(`
