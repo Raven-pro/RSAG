@@ -23,11 +23,52 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function estimateTitleUnits(title) {
+        const text = String(title || '').trim();
+        if (!text) return 2;
+
+        const cjkCount = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+        const latinCount = (text.match(/[A-Za-z0-9]/g) || []).length;
+        const otherCount = Math.max(0, text.length - cjkCount - latinCount);
+
+        // Rough visual width estimation: CJK chars are wider than Latin chars.
+        const visualWidth = cjkCount + latinCount * 0.55 + otherCount * 0.8;
+
+        // 1 unit ~= one title line in sidebar; +1 accounts for date line.
+        return Math.max(2, Math.ceil(visualWidth / 22) + 1);
+    }
+
+    function pickRecentNewsByBudget(items, lang) {
+        const budget = 15;
+        const minItems = 2;
+        const maxItems = 5;
+        const selected = [];
+        let used = 0;
+
+        for (const item of items.slice(0, maxItems)) {
+            const title = lang === 'en' ? (item.title_en || item.title) : (item.title || item.title_en);
+            const units = estimateTitleUnits(title);
+
+            if (selected.length >= minItems && used + units > budget) {
+                break;
+            }
+
+            selected.push(item);
+            used += units;
+        }
+
+        if (selected.length === 0 && items.length > 0) {
+            selected.push(items[0]);
+        }
+
+        return selected;
+    }
+
     function renderNews(items, lang) {
         newsList.innerHTML = '';
 
         if (items.length > 0) {
-            const recentNews = items.slice(0, 4);
+            const recentNews = pickRecentNewsByBudget(items, lang);
 
             recentNews.forEach(item => {
                 const li = document.createElement('li');
