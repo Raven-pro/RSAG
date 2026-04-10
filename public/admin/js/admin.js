@@ -1,6 +1,12 @@
 // 管理后台工具库
 class AdminUtils {
     static baseURL = '/api/admin';
+    static loginPath = '/admin/login';
+    static dashboardPath = '/admin/dashboard';
+
+    static isLoginRoute(pathname = window.location.pathname) {
+        return pathname === '/admin/login' || pathname === '/admin/login.html' || pathname.endsWith('/admin/login');
+    }
     
     // 获取存储的认证令牌（兼容旧键名）
     static getToken() {
@@ -54,7 +60,7 @@ class AdminUtils {
             
             if (response.status === 401) {
                 this.clearToken();
-                window.location.href = '/admin/login.html';
+                window.location.href = this.loginPath;
                 return;
             }
             
@@ -185,7 +191,7 @@ class AdminUtils {
             
             if (response.status === 401) {
                 this.clearToken();
-                window.location.href = '/admin/login.html';
+                window.location.href = this.loginPath;
                 return;
             }
             
@@ -324,7 +330,7 @@ class AdminUtils {
                     const confirmed = await this.showConfirm('确定要退出登录吗？');
                     if (confirmed) {
                         this.clearToken();
-                        window.location.href = '/admin/login.html';
+                        window.location.href = this.loginPath;
                     }
                 };
             }
@@ -334,7 +340,7 @@ class AdminUtils {
     // 检查登录状态
     static checkAuth() {
         if (!this.isAuthenticated()) {
-            window.location.href = '/admin/login.html';
+            window.location.href = this.loginPath;
             return false;
         }
         return true;
@@ -344,7 +350,7 @@ class AdminUtils {
 // 页面加载完成后的通用初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 如果不是登录页面，检查认证状态
-    if (!window.location.pathname.includes('login.html')) {
+    if (!AdminUtils.isLoginRoute()) {
         AdminUtils.checkAuth();
         AdminUtils.initSidebar();
     }
