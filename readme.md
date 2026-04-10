@@ -49,6 +49,7 @@
 
 说明：
 - 新闻会合并 `data.json` 与 `public/news/item*.html`，并自动保留静态页中的正文和图片链接。
+- 若新闻已存在于 D1，迁移会回填缺失的 `title_en/summary_en/content_en`（仅在英文为空或与中文相同的情况下覆盖）。
 - 图片位于 `public/images/**` 时，会随 Pages 静态资源发布，不需要额外写入 D1。
 - 导入 SQL 使用“存在则跳过”的方式，可重复执行，避免重复插入同一条记录。
 

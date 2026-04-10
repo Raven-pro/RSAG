@@ -163,6 +163,14 @@ function pickEnglishText(values) {
     return '';
 }
 
+function isLikelyEnglish(text) {
+    const value = compactText(text);
+    if (!value) return false;
+    const latinCount = (value.match(/[A-Za-z]/g) || []).length;
+    const cjkCount = (value.match(/[\u4e00-\u9fff]/g) || []).length;
+    return latinCount >= 12 && latinCount >= cjkCount * 2;
+}
+
 function extractProseInnerHtml(html) {
     const marker = 'class="prose';
     const markerIndex = html.indexOf(marker);
@@ -230,13 +238,33 @@ function extractLegacyNewsItems() {
             .filter(Boolean);
 
         const title = h1Matches[0] || fileName.replace('.html', '');
+        const titleEn = h1Matches.find((item) => isLikelyEnglish(item)) || pickEnglishText(h1Matches) || null;
 
         const proseHtml = extractProseInnerHtml(raw);
-        const paragraphMatches = [...proseHtml.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
-            .map((m) => compactText(stripHtml(m[1])))
+        const paragraphBlocks = [...proseHtml.matchAll(/<p[^>]*>[\s\S]*?<\/p>/gi)]
+            .map((m) => ({
+                html: m[0].trim(),
+                text: compactText(stripHtml(m[0]))
+            }))
+            .filter((item) => item.text);
+
+        const paragraphMatches = paragraphBlocks
+            .map((item) => item.text)
             .filter(Boolean);
 
+        const englishParagraphs = paragraphBlocks.filter((item) => isLikelyEnglish(item.text));
+        const chineseParagraphs = paragraphBlocks.filter((item) => !isLikelyEnglish(item.text));
+
         const summary = paragraphMatches[0] || compactText(stripHtml(proseHtml));
+        const summaryEn = englishParagraphs[0]?.text || null;
+
+        let contentEn = englishParagraphs.length
+            ? englishParagraphs.map((item) => item.html).join('\n\n')
+            : null;
+
+        let contentZh = chineseParagraphs.length
+            ? chineseParagraphs.map((item) => item.html).join('\n\n')
+            : proseHtml;
 
         const dateMatch = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
         let publishDate = null;
@@ -247,13 +275,22 @@ function extractLegacyNewsItems() {
         const imageMatch = raw.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/i);
         const featuredImage = imageMatch ? imageMatch[1].trim() : null;
 
-        const content = proseHtml || `<p>${summary || title}</p>`;
+        if (!contentZh) {
+            contentZh = `<p>${summary || title}</p>`;
+        }
+
+        if (!contentEn && summaryEn) {
+            contentEn = `<p>${summaryEn}</p>`;
+        }
 
         items.push({
             source: `public/news/${fileName}`,
             title,
+            title_en: titleEn,
             summary: summary || null,
-            content,
+            summary_en: summaryEn,
+            content: contentZh,
+            content_en: contentEn,
             author: 'legacy-import',
             publish_date: publishDate || '2025-01-01',
             featured_image: featuredImage,
@@ -319,8 +356,11 @@ function buildNewsRows(jsonNews, staticNews) {
 
         rows.push({
             title: row.title,
+            title_en: compactText(row.title_en || '') || null,
             summary: row.summary || null,
+            summary_en: compactText(row.summary_en || '') || null,
             content: row.content,
+            content_en: compactText(row.content_en || '') || null,
             author: row.author,
             publish_date: date,
             featured_image: row.featured_image || null,
@@ -458,11 +498,12 @@ WHERE NOT EXISTS (
     for (const row of newsRows) {
         sqlParts.push(`
 INSERT INTO news (
-    title, summary, content, author, publish_date,
+    title, title_en, summary, summary_en, content, content_en, author, publish_date,
     featured_image, category, tags, status, created_by, created_at
 )
 SELECT
-    ${sqlValue(row.title)}, ${sqlValue(row.summary)}, ${sqlValue(row.content, { emptyAsNull: false })},
+    ${sqlValue(row.title)}, ${sqlValue(row.title_en)}, ${sqlValue(row.summary)}, ${sqlValue(row.summary_en)},
+    ${sqlValue(row.content, { emptyAsNull: false })}, ${sqlValue(row.content_en)},
     ${sqlValue(row.author)}, ${sqlValue(row.publish_date)}, ${sqlValue(row.featured_image)},
     ${sqlValue(row.category)}, ${sqlValue(row.tags)}, ${sqlValue(row.status)},
     ${sqlValue(row.created_by)}, ${sqlValue(row.created_at)}
@@ -471,8 +512,85 @@ WHERE NOT EXISTS (
     WHERE title = ${sqlValue(row.title)}
       AND publish_date = ${sqlValue(row.publish_date)}
 );
+
+UPDATE news
+SET
+    title_en = CASE
+        WHEN ${sqlValue(row.title_en)} IS NOT NULL
+         AND (title_en IS NULL OR title_en = '' OR title_en = title)
+        THEN ${sqlValue(row.title_en)}
+        ELSE title_en
+    END,
+    summary_en = CASE
+        WHEN ${sqlValue(row.summary_en)} IS NOT NULL
+         AND (summary_en IS NULL OR summary_en = '')
+        THEN ${sqlValue(row.summary_en)}
+        ELSE summary_en
+    END,
+    content_en = CASE
+        WHEN ${sqlValue(row.content_en)} IS NOT NULL
+         AND (content_en IS NULL OR content_en = '' OR content_en = content)
+        THEN ${sqlValue(row.content_en)}
+        ELSE content_en
+    END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE title = ${sqlValue(row.title)}
+  AND publish_date = ${sqlValue(row.publish_date)};
 `);
     }
+
+    sqlParts.push(`
+UPDATE news
+SET
+    title_en = CASE
+        WHEN (title_en IS NULL OR title_en = '' OR title_en = title) THEN (
+            SELECT src.title_en
+            FROM news AS src
+            WHERE src.title = news.title
+              AND src.title_en IS NOT NULL
+              AND src.title_en != ''
+              AND src.title_en != src.title
+            ORDER BY src.id DESC
+            LIMIT 1
+        )
+        ELSE title_en
+    END,
+    summary_en = CASE
+        WHEN (summary_en IS NULL OR summary_en = '') THEN (
+            SELECT src.summary_en
+            FROM news AS src
+            WHERE src.title = news.title
+              AND src.summary_en IS NOT NULL
+              AND src.summary_en != ''
+            ORDER BY src.id DESC
+            LIMIT 1
+        )
+        ELSE summary_en
+    END,
+    content_en = CASE
+        WHEN (content_en IS NULL OR content_en = '' OR content_en = content) THEN (
+            SELECT src.content_en
+            FROM news AS src
+            WHERE src.title = news.title
+              AND src.content_en IS NOT NULL
+              AND src.content_en != ''
+              AND src.content_en != src.content
+            ORDER BY src.id DESC
+            LIMIT 1
+        )
+        ELSE content_en
+    END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE EXISTS (
+    SELECT 1
+    FROM news AS src
+    WHERE src.title = news.title
+      AND (
+          (src.title_en IS NOT NULL AND src.title_en != '' AND src.title_en != src.title)
+          OR (src.content_en IS NOT NULL AND src.content_en != '' AND src.content_en != src.content)
+      )
+);
+`);
 
     for (const row of teamRows) {
         sqlParts.push(`

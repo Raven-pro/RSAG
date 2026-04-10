@@ -27,6 +27,8 @@
                     <span id="news-author-wrap" class="hidden"> · 作者：<span id="news-author"></span></span>
                 </p>
 
+                <div id="lang-fallback-tip" class="hidden mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"></div>
+
                 <img id="news-image" class="hidden mt-5 w-full max-h-[380px] rounded-lg object-cover" alt="新闻配图">
 
                 <div id="news-summary" class="hidden mt-5 rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-gray-700"></div>
@@ -49,6 +51,7 @@
                 noTitle: '未命名新闻',
                 noBody: '暂无正文内容。',
                 langBtn: 'EN',
+                enFallbackTip: '该新闻暂无完整英文版本，当前部分内容为中文回退显示。',
                 pageName: '新闻详情'
             },
             en: {
@@ -63,6 +66,7 @@
                 noTitle: 'Untitled News',
                 noBody: 'No content yet.',
                 langBtn: '中文',
+                enFallbackTip: 'This news item has no complete English version yet. Some fields are shown in Chinese as fallback.',
                 pageName: 'News Detail'
             }
         };
@@ -135,6 +139,19 @@
                 const title = currentLang === 'en' ? (item.title_en || item.title) : (item.title || item.title_en);
                 const summary = currentLang === 'en' ? (item.summary_en || item.summary) : (item.summary || item.summary_en);
                 const content = currentLang === 'en' ? (item.content_en || item.content) : (item.content || item.content_en);
+
+                const englishFallback = currentLang === 'en' && (
+                    !item.title_en || item.title_en === item.title ||
+                    !item.content_en || item.content_en === item.content
+                );
+
+                const fallbackTip = document.getElementById('lang-fallback-tip');
+                if (englishFallback) {
+                    fallbackTip.textContent = i18n[currentLang].enFallbackTip;
+                    fallbackTip.classList.remove('hidden');
+                } else {
+                    fallbackTip.classList.add('hidden');
+                }
 
                 document.getElementById('news-title').textContent = title || i18n[currentLang].noTitle;
                 document.getElementById('news-date').textContent = formatDate(item.publish_date);
