@@ -342,7 +342,8 @@
                 return;
             }
 
-            applyBtn.disabled = !(count > 0 && status);
+            // 只要选择了目标状态就允许点击，未勾选记录时在点击后给出明确提示。
+            applyBtn.disabled = !status;
             applyBtn.textContent = `应用(${count})`;
 
             const selectAll = document.getElementById('select-all-news');
