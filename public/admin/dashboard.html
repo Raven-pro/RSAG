@@ -260,7 +260,7 @@
             const leftPad = 42;
             const rightPad = 14;
             const topPad = 16;
-            const bottomPad = 84;
+            const bottomPad = 48;
             const innerWidth = width - leftPad - rightPad;
             const innerHeight = height - topPad - bottomPad;
 
@@ -286,10 +286,20 @@
                 return `<line x1="${x}" y1="${topPad}" x2="${x}" y2="${topPad + innerHeight}" stroke="#f1f5f9" />`;
             }).join('');
 
-            const xTicks = dates.map((date, index) => {
+            const maxTickCount = 8;
+            const tickStep = Math.max(1, Math.ceil(dates.length / maxTickCount));
+            const tickIndexes = [];
+            for (let i = 0; i < dates.length; i += tickStep) {
+                tickIndexes.push(i);
+            }
+            if (tickIndexes[tickIndexes.length - 1] !== dates.length - 1) {
+                tickIndexes.push(dates.length - 1);
+            }
+
+            const xTicks = tickIndexes.map((index) => {
                 const x = dates.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (dates.length - 1);
-                const y = height - 16;
-                return `<text x="${x}" y="${y}" font-size="10" fill="#64748b" text-anchor="end" transform="rotate(-55 ${x} ${y})">${date.slice(5)}</text>`;
+                const y = topPad + innerHeight + 18;
+                return `<text x="${x}" y="${y}" font-size="10" fill="#64748b" text-anchor="middle">${dates[index].slice(5)}</text>`;
             }).join('');
 
             container.innerHTML = `
