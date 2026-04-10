@@ -1,4 +1,5 @@
 import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { normalizeOrderIndex, reorderTeamMembers } from '../team-order.js';
 
 // GET /api/admin/team/[id]
 export async function onRequestGet(context) {
@@ -57,10 +58,12 @@ export async function onRequestPut(context) {
         const db = env.DB;
         await initDatabase(db);
 
-        const existing = await db.prepare('SELECT id, name FROM team_members WHERE id = ?').bind(id).first();
+        const existing = await db.prepare('SELECT id, name, order_index FROM team_members WHERE id = ?').bind(id).first();
         if (!existing) {
             return createErrorResponse('成员不存在', 404);
         }
+
+        const targetOrder = normalizeOrderIndex(order_index, existing.order_index || 1);
 
         await db.prepare(`
             UPDATE team_members SET
@@ -83,10 +86,12 @@ export async function onRequestPut(context) {
             photo_url || null,
             email || null,
             phone || null,
-            Number.parseInt(order_index, 10) || 1,
+            targetOrder,
             status || 'active',
             id
         ).run();
+
+        await reorderTeamMembers(db, id, targetOrder);
 
         await logActivity(
             db,
@@ -126,6 +131,7 @@ export async function onRequestDelete(context) {
         }
 
         await db.prepare('DELETE FROM team_members WHERE id = ?').bind(id).run();
+        await reorderTeamMembers(db);
 
         await logActivity(
             db,

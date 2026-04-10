@@ -13,7 +13,7 @@ export async function onRequestGet(context) {
         await initDatabase(db);
 
         const result = await db.prepare(`
-            SELECT id, name, title, research_area, photo_url, status, order_index, created_at, updated_at
+            SELECT id, name, title, bio, research_area, photo_url, email, phone, status, order_index, created_at, updated_at
             FROM team_members
             ORDER BY order_index ASC, id ASC
         `).all();

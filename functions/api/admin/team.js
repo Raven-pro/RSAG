@@ -1,4 +1,5 @@
 import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { normalizeOrderIndex, reorderTeamMembers } from './team-order.js';
 
 // GET /api/admin/team
 export async function onRequestGet(context) {
@@ -72,12 +73,13 @@ export async function onRequestPost(context) {
             photo_url || null,
             email || null,
             phone || null,
-            Number.parseInt(order_index, 10) || 1,
+            normalizeOrderIndex(order_index, 1),
             status || 'active',
             user.username
         ).run();
 
         const memberId = result.meta.last_row_id;
+        await reorderTeamMembers(db, memberId, normalizeOrderIndex(order_index, 1));
 
         await logActivity(
             db,
