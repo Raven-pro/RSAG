@@ -4,7 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>新闻详情 - RSAG</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+        #news-body p {
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            line-height: 1.9;
+        }
+
+        #news-body h2,
+        #news-body h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            font-weight: 700;
+            color: #5b21b6;
+        }
+
+        #news-body img {
+            border-radius: 0.75rem;
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        #news-body .my-8 {
+            margin-top: 1.75rem;
+            margin-bottom: 1.75rem;
+        }
+    </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
     <main class="container mx-auto max-w-4xl px-4 py-10">
@@ -111,6 +138,13 @@
             err.classList.remove('hidden');
         }
 
+        function applyBasicMarkdown(html) {
+            if (!html) return '';
+            return String(html)
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/__(.+?)__/g, '<strong>$1</strong>');
+        }
+
         async function loadNewsDetail() {
             const id = new URLSearchParams(window.location.search).get('id');
             if (!id) {
@@ -175,7 +209,7 @@
                     summary.classList.remove('hidden');
                 }
 
-                document.getElementById('news-body').innerHTML = content || `<p>${i18n[currentLang].noBody}</p>`;
+                document.getElementById('news-body').innerHTML = applyBasicMarkdown(content) || `<p>${i18n[currentLang].noBody}</p>`;
             } catch (error) {
                 showError(`${i18n[currentLang].loadFailed}：${error.message}`);
             }

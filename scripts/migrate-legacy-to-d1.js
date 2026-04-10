@@ -517,19 +517,33 @@ UPDATE news
 SET
     title_en = CASE
         WHEN ${sqlValue(row.title_en)} IS NOT NULL
-         AND (title_en IS NULL OR title_en = '' OR title_en = title)
+         AND (
+             title_en IS NULL
+             OR title_en = ''
+             OR title_en = title
+             OR title_en GLOB '*[一-龥]*'
+         )
         THEN ${sqlValue(row.title_en)}
         ELSE title_en
     END,
     summary_en = CASE
         WHEN ${sqlValue(row.summary_en)} IS NOT NULL
-         AND (summary_en IS NULL OR summary_en = '')
+         AND (
+             summary_en IS NULL
+             OR summary_en = ''
+             OR summary_en GLOB '*[一-龥]*'
+         )
         THEN ${sqlValue(row.summary_en)}
         ELSE summary_en
     END,
     content_en = CASE
         WHEN ${sqlValue(row.content_en)} IS NOT NULL
-         AND (content_en IS NULL OR content_en = '' OR content_en = content)
+         AND (
+             content_en IS NULL
+             OR content_en = ''
+             OR content_en = content
+             OR content_en GLOB '*[一-龥]*'
+         )
         THEN ${sqlValue(row.content_en)}
         ELSE content_en
     END,
