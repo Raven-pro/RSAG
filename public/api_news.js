@@ -34,14 +34,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // Rough visual width estimation: CJK chars are wider than Latin chars.
         const visualWidth = cjkCount + latinCount * 0.55 + otherCount * 0.8;
 
+        // Sidebar is relatively narrow; use tighter width to better reflect multi-line wrapping.
         // 1 unit ~= one title line in sidebar; +1 accounts for date line.
-        return Math.max(2, Math.ceil(visualWidth / 22) + 1);
+        return Math.max(2, Math.ceil(visualWidth / 16) + 1);
     }
 
     function pickRecentNewsByBudget(items, lang) {
-        const budget = 15;
+        const budget = 10;
         const minItems = 2;
-        const maxItems = 5;
+        const maxItems = 4;
         const selected = [];
         let used = 0;
 
