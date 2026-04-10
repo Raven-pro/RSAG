@@ -2,6 +2,11 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     const newsList = document.getElementById('news-list');
+    const DESKTOP_MIN_WIDTH = 768;
+    const BASE_VIDEO_GAP = 20; // equals mt-5
+    const MAX_NEWS_ITEMS = 5;
+    let latestNews = [];
+    let latestLang = 'zh';
 
     if (!newsList) {
         console.error('错误：未能找到 ID 为 "news-list" 的新闻列表容器。');
@@ -42,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function pickRecentNewsByBudget(items, lang) {
         const budget = 14;
         const minItems = 2;
-        const maxItems = 5;
+        const maxItems = Math.min(MAX_NEWS_ITEMS, items.length || MAX_NEWS_ITEMS);
         const selected = [];
         let used = 0;
 
@@ -65,41 +70,108 @@ document.addEventListener('DOMContentLoaded', function() {
         return selected;
     }
 
-    function renderNews(items, lang) {
+    function getLayoutElements() {
+        const leftColumn = document.getElementById('home-main-column');
+        const rightColumn = document.getElementById('home-sidebar-column');
+        const videoBlock = document.getElementById('home-video-block');
+        return { leftColumn, rightColumn, videoBlock };
+    }
+
+    function renderNewsList(recentNews, lang) {
         newsList.innerHTML = '';
 
-        if (items.length > 0) {
-            const recentNews = pickRecentNewsByBudget(items, lang);
-
-            recentNews.forEach(item => {
-                const li = document.createElement('li');
-                const title = lang === 'en' ? (item.title_en || item.title) : (item.title || item.title_en);
-                const formattedDate = formatDate(item.publish_date, lang);
-
-                li.innerHTML = `
-                    <a href="/news/detail.html?id=${encodeURIComponent(item.id)}&lang=${lang}" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
-                        <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline">${title}</span><br>
-                        <span class="text-sm text-gray-500">${formattedDate}</span>
-                    </a>
-                `;
-
-                newsList.appendChild(li);
-            });
-
-            const moreNewsLi = document.createElement('li');
-            moreNewsLi.className = 'pt-2';
-            moreNewsLi.innerHTML = `
-                <a href="/news/total.html?lang=${lang}" class="text-sm text-blue-600 hover:underline font-medium" data-lang-key="newsMoreLink">${lang === 'en' ? 'More news »' : '查看所有新闻 »'}</a>
-            `;
-            newsList.appendChild(moreNewsLi);
-        } else {
+        recentNews.forEach(item => {
             const li = document.createElement('li');
+            const title = lang === 'en' ? (item.title_en || item.title) : (item.title || item.title_en);
+            const formattedDate = formatDate(item.publish_date, lang);
+
             li.innerHTML = `
-                <div class="block p-2 rounded">
-                    <span class="text-gray-500">${lang === 'en' ? 'No news yet.' : '暂无新闻。'}</span>
-                </div>
+                <a href="/news/detail.html?id=${encodeURIComponent(item.id)}&lang=${lang}" class="block group hover:bg-gray-50 p-2 rounded transition-colors duration-150">
+                    <span class="font-medium text-blue-700 group-hover:text-blue-900 group-hover:underline">${title}</span><br>
+                    <span class="text-sm text-gray-500">${formattedDate}</span>
+                </a>
             `;
+
             newsList.appendChild(li);
+        });
+
+        const moreNewsLi = document.createElement('li');
+        moreNewsLi.className = 'pt-2';
+        moreNewsLi.innerHTML = `
+            <a href="/news/total.html?lang=${lang}" class="text-sm text-blue-600 hover:underline font-medium" data-lang-key="newsMoreLink">${lang === 'en' ? 'More news »' : '查看所有新闻 »'}</a>
+        `;
+        newsList.appendChild(moreNewsLi);
+    }
+
+    function renderNoNews(lang) {
+        newsList.innerHTML = '';
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <div class="block p-2 rounded">
+                <span class="text-gray-500">${lang === 'en' ? 'No news yet.' : '暂无新闻。'}</span>
+            </div>
+        `;
+        newsList.appendChild(li);
+    }
+
+    function fitSidebarHeightOnDesktop(items, lang) {
+        const { leftColumn, rightColumn, videoBlock } = getLayoutElements();
+        if (!leftColumn || !rightColumn || !videoBlock) {
+            return false;
+        }
+
+        if (window.innerWidth < DESKTOP_MIN_WIDTH) {
+            videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+            return false;
+        }
+
+        const maxCount = Math.min(MAX_NEWS_ITEMS, items.length);
+        if (maxCount <= 0) {
+            videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+            return false;
+        }
+
+        let chosenCount = 1;
+        videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+
+        for (let count = 1; count <= maxCount; count += 1) {
+            renderNewsList(items.slice(0, count), lang);
+            videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+
+            const leftHeight = leftColumn.getBoundingClientRect().height;
+            const rightHeight = rightColumn.getBoundingClientRect().height;
+
+            if (rightHeight <= leftHeight) {
+                chosenCount = count;
+            } else {
+                break;
+            }
+        }
+
+        renderNewsList(items.slice(0, chosenCount), lang);
+        videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+
+        const leftHeight = leftColumn.getBoundingClientRect().height;
+        const rightHeight = rightColumn.getBoundingClientRect().height;
+        const extraGap = Math.max(0, Math.round(leftHeight - rightHeight));
+        videoBlock.style.marginTop = `${BASE_VIDEO_GAP + extraGap}px`;
+
+        return true;
+    }
+
+    function renderNews(items, lang) {
+        latestNews = Array.isArray(items) ? items : [];
+        latestLang = lang;
+
+        if (!latestNews.length) {
+            renderNoNews(lang);
+            return;
+        }
+
+        const fitted = fitSidebarHeightOnDesktop(latestNews, lang);
+        if (!fitted) {
+            const recentNews = pickRecentNewsByBudget(latestNews, lang);
+            renderNewsList(recentNews, lang);
         }
     }
 
@@ -133,4 +205,23 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('语言切换后刷新新闻失败:', error);
         });
     });
+
+    const handleResize = (() => {
+        let timer = null;
+        return () => {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+                renderNews(latestNews, latestLang);
+            }, 120);
+        };
+    })();
+
+    window.addEventListener('resize', handleResize);
+
+    const homeImage = document.querySelector('#home img');
+    if (homeImage && !homeImage.complete) {
+        homeImage.addEventListener('load', () => {
+            renderNews(latestNews, latestLang);
+        });
+    }
 });
