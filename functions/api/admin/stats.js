@@ -3,6 +3,10 @@ import { authenticate, createResponse, createErrorResponse, initDatabase } from 
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ALLOWED_TYPES = ['SCI', 'EI', 'Conference', 'DomesticConference'];
+const TYPE_ALIASES = {
+    '国际会议': 'Conference',
+    '国内会议': 'DomesticConference'
+};
 
 function parseRangeDays(rawValue) {
     const parsed = Number.parseInt(String(rawValue || ''), 10);
@@ -33,8 +37,56 @@ function toCountSeries(rows, buckets) {
     return buckets.map((day) => map.get(day) || 0);
 }
 
-function parsePublicationTypes(typesRaw, typeRaw) {
+function normalizeTypeValue(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    const mapped = TYPE_ALIASES[text] || text;
+    return ALLOWED_TYPES.includes(mapped) ? mapped : '';
+}
+
+function inferPublicationType(row) {
+    const title = String(row?.title || '');
+    const journal = String(row?.journal || '');
+    const keywords = String(row?.keywords || '');
+    const doi = String(row?.doi || '');
+    const mixed = `${title} ${journal} ${keywords}`;
+    const lower = mixed.toLowerCase();
+
+    if (/国内会议|中文会议/.test(mixed)) {
+        return 'DomesticConference';
+    }
+
+    if (/国际会议/.test(mixed) || /international conference/.test(lower)) {
+        return 'Conference';
+    }
+
+    if (/conference|symposium|workshop|proceedings|forum/.test(lower)) {
+        return 'Conference';
+    }
+
+    if (/会议|论坛|研讨会|年会/.test(mixed)) {
+        return /国际/.test(mixed) ? 'Conference' : 'DomesticConference';
+    }
+
+    if (/\bsci\b/.test(lower)) {
+        return 'SCI';
+    }
+
+    if (/\bei\b/.test(lower)) {
+        return 'EI';
+    }
+
+    if (doi || journal) {
+        return 'SCI';
+    }
+
+    return '';
+}
+
+function parsePublicationTypes(row) {
     let values = [];
+    const typesRaw = row?.types;
+    const typeRaw = row?.type;
 
     if (typeof typesRaw === 'string' && typesRaw.trim()) {
         const raw = typesRaw.trim();
@@ -50,15 +102,23 @@ function parsePublicationTypes(typesRaw, typeRaw) {
         }
     }
 
-    if (typeRaw) {
-        values.push(typeRaw);
+    const type = normalizeTypeValue(typeRaw);
+    if (type) {
+        values.push(type);
     }
 
     const unique = [];
     for (const value of values) {
-        const normalized = String(value || '').trim();
-        if (ALLOWED_TYPES.includes(normalized) && !unique.includes(normalized)) {
+        const normalized = normalizeTypeValue(value);
+        if (normalized && !unique.includes(normalized)) {
             unique.push(normalized);
+        }
+    }
+
+    if (unique.length === 0) {
+        const inferred = inferPublicationType(row);
+        if (inferred) {
+            unique.push(inferred);
         }
     }
 
@@ -74,7 +134,7 @@ function buildPublicationTypeDistribution(rows) {
     };
 
     for (const row of rows || []) {
-        const types = parsePublicationTypes(row.types, row.type);
+        const types = parsePublicationTypes(row);
         if (types.length === 0) {
             continue;
         }
@@ -149,7 +209,7 @@ export async function onRequestGet(context) {
                 GROUP BY date(created_at)
                 ORDER BY day ASC
             `).bind(offsetExpr).all(),
-            db.prepare('SELECT type, types FROM publications').all(),
+            db.prepare('SELECT type, types, title, journal, keywords, doi FROM publications').all(),
             db.prepare(`
                 SELECT action, user, details, created_at
                 FROM activity_logs

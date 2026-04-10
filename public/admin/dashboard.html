@@ -205,6 +205,19 @@
             `).join('');
         }
 
+        function buildLinePath(values, chartWidth, chartHeight, leftPad, topPad, innerWidth, innerHeight, maxValue) {
+            if (!values.length) return '';
+            const points = values.map((value, index) => {
+                const x = values.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (values.length - 1);
+                const y = topPad + innerHeight - ((Number(value) || 0) / maxValue) * innerHeight;
+                return `${x},${y}`;
+            });
+            if (points.length === 1) {
+                return `M ${points[0]} L ${points[0]}`;
+            }
+            return `M ${points.join(' L ')}`;
+        }
+
         function renderTrendRows(stats) {
             const container = document.getElementById('trend-rows');
             const trends = stats?.trends || {};
@@ -219,29 +232,52 @@
                 return;
             }
 
-            container.innerHTML = dates.map((date, index) => {
-                const monthDay = date.slice(5);
-                const pubWidth = Math.max(4, Math.round(((publications[index] || 0) / maxValue) * 100));
-                const newsWidth = Math.max(4, Math.round(((news[index] || 0) / maxValue) * 100));
-                const filesWidth = Math.max(4, Math.round(((files[index] || 0) / maxValue) * 100));
+            const width = 860;
+            const height = 280;
+            const leftPad = 42;
+            const rightPad = 14;
+            const topPad = 16;
+            const bottomPad = 34;
+            const innerWidth = width - leftPad - rightPad;
+            const innerHeight = height - topPad - bottomPad;
 
+            const yGrid = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                const y = topPad + innerHeight * ratio;
+                const labelValue = Math.round(maxValue * (1 - ratio));
                 return `
-                    <div style="display:grid; grid-template-columns: 54px 1fr; gap: 0.75rem; align-items: center;">
-                        <div style="font-size: 0.8rem; color: #64748b;">${monthDay}</div>
-                        <div style="display: grid; gap: 0.25rem;">
-                            <div style="height: 6px; background: #eef2ff; border-radius: 999px; overflow: hidden;">
-                                <div style="height: 100%; width: ${pubWidth}%; background: #5b21b6;"></div>
-                            </div>
-                            <div style="height: 6px; background: #ecfdf5; border-radius: 999px; overflow: hidden;">
-                                <div style="height: 100%; width: ${newsWidth}%; background: #10b981;"></div>
-                            </div>
-                            <div style="height: 6px; background: #fffbeb; border-radius: 999px; overflow: hidden;">
-                                <div style="height: 100%; width: ${filesWidth}%; background: #f59e0b;"></div>
-                            </div>
-                        </div>
-                    </div>
+                    <line x1="${leftPad}" y1="${y}" x2="${width - rightPad}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="3 3" />
+                    <text x="${leftPad - 8}" y="${y + 4}" font-size="11" fill="#94a3b8" text-anchor="end">${labelValue}</text>
                 `;
             }).join('');
+
+            const pubPath = buildLinePath(publications, width, height, leftPad, topPad, innerWidth, innerHeight, maxValue);
+            const newsPath = buildLinePath(news, width, height, leftPad, topPad, innerWidth, innerHeight, maxValue);
+            const filesPath = buildLinePath(files, width, height, leftPad, topPad, innerWidth, innerHeight, maxValue);
+
+            const xTicks = [0, Math.floor((dates.length - 1) / 2), dates.length - 1]
+                .filter((v, i, arr) => dates.length > 0 && arr.indexOf(v) === i)
+                .map((index) => {
+                    const x = dates.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (dates.length - 1);
+                    return `<text x="${x}" y="${height - 10}" font-size="11" fill="#64748b" text-anchor="middle">${dates[index].slice(5)}</text>`;
+                })
+                .join('');
+
+            container.innerHTML = `
+                <div style="display:flex; gap:1.25rem; flex-wrap:wrap; margin-bottom:0.75rem; font-size:0.83rem; color:#334155;">
+                    <span style="display:inline-flex; align-items:center; gap:0.4rem;"><span style="width:10px; height:10px; border-radius:50%; background:#5b21b6;"></span>论文</span>
+                    <span style="display:inline-flex; align-items:center; gap:0.4rem;"><span style="width:10px; height:10px; border-radius:50%; background:#10b981;"></span>新闻</span>
+                    <span style="display:inline-flex; align-items:center; gap:0.4rem;"><span style="width:10px; height:10px; border-radius:50%; background:#f59e0b;"></span>文件</span>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:12px; padding:0.5rem; background:#ffffff; overflow-x:auto;">
+                    <svg viewBox="0 0 ${width} ${height}" style="width:100%; min-width:680px; display:block;" role="img" aria-label="运营趋势折线图">
+                        ${yGrid}
+                        <path d="${pubPath}" fill="none" stroke="#5b21b6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="${newsPath}" fill="none" stroke="#10b981" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="${filesPath}" fill="none" stroke="#f59e0b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                        ${xTicks}
+                    </svg>
+                </div>
+            `;
         }
 
         function renderPublicationTypeDistribution(stats) {
@@ -291,13 +327,11 @@
             }
 
             container.innerHTML = list.map(a => `
-                <div class="flex items-center p-4 bg-gray-50 rounded-lg">
-                    <div class="p-2 rounded-full bg-blue-100 text-blue-600 mr-4">
-                        <span>👤</span>
-                    </div>
-                    <div class="flex-1">
-                        <p class="font-medium text-gray-800">${a.description || a.details || a.action || '活动'}</p>
-                        <p class="text-sm text-gray-500">用户: ${a.user || '-'} • ${new Date(a.timestamp || a.created_at).toLocaleString('zh-CN')}</p>
+                <div style="display:flex; align-items:flex-start; gap:0.9rem; padding:0.95rem 1rem; border:1px solid #e2e8f0; border-radius:10px; background:#fcfdff;">
+                    <div style="width:9px; height:9px; border-radius:999px; background:#2563eb; margin-top:0.48rem; flex:0 0 auto;"></div>
+                    <div style="flex:1; min-width:0; font-family:'SF Pro Text','PingFang SC','Inter','Helvetica Neue',sans-serif;">
+                        <p style="margin:0; color:#0f172a; font-size:0.95rem; line-height:1.45; font-weight:600; letter-spacing:0.01em;">${a.description || a.details || a.action || '活动'}</p>
+                        <p style="margin:0.38rem 0 0; color:#64748b; font-size:0.78rem; letter-spacing:0.02em;">${a.user || '-'} · ${new Date(a.timestamp || a.created_at).toLocaleString('zh-CN')}</p>
                     </div>
                 </div>
             `).join('');
