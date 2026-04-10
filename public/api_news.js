@@ -2,6 +2,8 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     const newsList = document.getElementById('news-list');
+    const moreNewsLink = document.getElementById('news-more-link');
+    const moreNewsWrapper = document.getElementById('news-more-wrapper');
     const DESKTOP_MIN_WIDTH = 768;
     const BASE_VIDEO_GAP = 20; // equals mt-5
     const MAX_NEWS_ITEMS = 5;
@@ -94,13 +96,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             newsList.appendChild(li);
         });
+    }
 
-        const moreNewsLi = document.createElement('li');
-        moreNewsLi.className = 'pt-2';
-        moreNewsLi.innerHTML = `
-            <a href="/news/total.html?lang=${lang}" class="text-sm text-blue-600 hover:underline font-medium" data-lang-key="newsMoreLink">${lang === 'en' ? 'More news »' : '查看所有新闻 »'}</a>
-        `;
-        newsList.appendChild(moreNewsLi);
+    function updateMoreNewsLink(lang) {
+        if (!moreNewsLink) return;
+        moreNewsLink.href = `/news/total.html?lang=${lang}`;
+        moreNewsLink.textContent = lang === 'en' ? 'More news »' : '查看所有新闻 »';
     }
 
     function renderNoNews(lang) {
@@ -112,6 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         newsList.appendChild(li);
+        updateMoreNewsLink(lang);
     }
 
     function fitSidebarHeightOnDesktop(items, lang) {
@@ -126,21 +128,10 @@ document.addEventListener('DOMContentLoaded', function() {
             newsList.style.maxHeight = '';
             newsList.style.overflowY = '';
             videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
-        }
-
-        function clampNewsListIfNeeded(targetHeight) {
-            if (rightColumn.scrollHeight <= rightColumn.clientHeight + 1) {
-                return;
+            if (moreNewsWrapper) {
+                moreNewsWrapper.style.maxHeight = '';
+                moreNewsWrapper.style.overflow = '';
             }
-
-            const heading = rightColumn.querySelector('h2');
-            const headingHeight = heading ? heading.getBoundingClientRect().height : 0;
-            const videoHeight = videoBlock.getBoundingClientRect().height;
-            const reserved = headingHeight + videoHeight + BASE_VIDEO_GAP + 28;
-            const maxListHeight = Math.max(96, Math.floor(targetHeight - reserved));
-
-            newsList.style.maxHeight = `${maxListHeight}px`;
-            newsList.style.overflowY = 'auto';
         }
 
         if (window.innerWidth < DESKTOP_MIN_WIDTH) {
@@ -160,6 +151,19 @@ document.addEventListener('DOMContentLoaded', function() {
         newsList.style.maxHeight = '';
         newsList.style.overflowY = 'hidden';
 
+        const heading = rightColumn.querySelector('h2');
+        const headingHeight = heading ? Math.ceil(heading.getBoundingClientRect().height) : 0;
+        const videoHeight = Math.ceil(videoBlock.getBoundingClientRect().height);
+        const moreHeight = moreNewsWrapper ? Math.ceil(moreNewsWrapper.getBoundingClientRect().height) : 0;
+        const safetyGap = 16;
+        const availableListHeight = Math.max(
+            96,
+            Math.floor(leftHeight - headingHeight - videoHeight - moreHeight - BASE_VIDEO_GAP - safetyGap)
+        );
+
+        newsList.style.maxHeight = `${availableListHeight}px`;
+        newsList.style.overflowY = 'hidden';
+
         const maxCount = Math.min(MAX_NEWS_ITEMS, items.length);
         if (maxCount <= 0) {
             return true;
@@ -169,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         for (let count = maxCount; count >= 1; count -= 1) {
             renderNewsList(items.slice(0, count), lang);
-            if (rightColumn.scrollHeight <= rightColumn.clientHeight + 1) {
+            if (newsList.scrollHeight <= availableListHeight + 1) {
                 chosenCount = count;
                 break;
             }
@@ -177,12 +181,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (chosenCount === 0) {
             renderNewsList(items.slice(0, 1), lang);
-            clampNewsListIfNeeded(leftHeight);
+            if (newsList.scrollHeight > availableListHeight + 1) {
+                newsList.style.overflowY = 'auto';
+            }
             return true;
         }
 
         renderNewsList(items.slice(0, chosenCount), lang);
-        clampNewsListIfNeeded(leftHeight);
+        if (newsList.scrollHeight > availableListHeight + 1) {
+            newsList.style.overflowY = 'auto';
+        }
 
         return true;
     }
@@ -190,6 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderNews(items, lang) {
         latestNews = Array.isArray(items) ? items : [];
         latestLang = lang;
+        updateMoreNewsLink(lang);
 
         if (!latestNews.length) {
             renderNoNews(lang);
@@ -249,6 +258,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const homeImage = document.querySelector('#home img');
     if (homeImage && !homeImage.complete) {
         homeImage.addEventListener('load', () => {
+            renderNews(latestNews, latestLang);
+        });
+    }
+
+    const videoIframe = document.querySelector('#home-video-block iframe');
+    if (videoIframe) {
+        videoIframe.addEventListener('load', () => {
             renderNews(latestNews, latestLang);
         });
     }
