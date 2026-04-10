@@ -49,6 +49,13 @@
                         <input type="text" class="search-input" placeholder="搜索论文标题、作者..." id="search-input">
                         <div class="search-icon">🔍</div>
                     </div>
+                    <select id="type-filter" class="form-select" style="width: auto; margin-left: 1rem;">
+                        <option value="">全部类型</option>
+                        <option value="SCI">SCI</option>
+                        <option value="EI">EI</option>
+                        <option value="Conference">国际会议</option>
+                        <option value="DomesticConference">国内会议</option>
+                    </select>
                 </div>
                 <div class="toolbar-right">
                     <a class="btn btn-secondary" href="/publications-api.html" target="_blank" rel="noopener noreferrer">
@@ -192,14 +199,57 @@
     <script>
         let currentPage = 1;
         let currentSearch = '';
+        let currentType = '';
+
+        function normalizeTypes(pub) {
+            if (Array.isArray(pub.types)) {
+                return pub.types;
+            }
+            if (typeof pub.types === 'string' && pub.types.trim()) {
+                const raw = pub.types.trim();
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (_) {
+                    return raw.split(',').map(x => x.trim()).filter(Boolean);
+                }
+            }
+            if (pub.type) {
+                return [pub.type];
+            }
+            return [];
+        }
+
+        function typeText(type) {
+            const map = {
+                SCI: 'SCI',
+                EI: 'EI',
+                Conference: '国际会议',
+                DomesticConference: '国内会议'
+            };
+            return map[type] || type;
+        }
+
+        function renderTypeBadges(pub) {
+            const tags = normalizeTypes(pub);
+            if (!tags.length) {
+                return '';
+            }
+            return `
+                <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.35rem;">
+                    ${tags.map(tag => `<span class="status-badge status-success" style="font-size:0.68rem;">${typeText(tag)}</span>`).join('')}
+                </div>
+            `;
+        }
         
         // 加载论文列表
-        async function loadPublications(page = 1, search = '') {
+        async function loadPublications(page = 1, search = '', type = '') {
             try {
                 const params = new URLSearchParams({
                     page: page.toString(),
                     limit: '10',
-                    ...(search && { search })
+                    ...(search && { search }),
+                    ...(type && { type })
                 });
                 
                 const response = await AdminUtils.apiRequest(`/publications?${params}`);
@@ -212,7 +262,7 @@
                     tbody.innerHTML = `
                         <tr>
                             <td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">
-                                ${search ? '未找到匹配的论文' : '暂无论文数据'}
+                                ${(search || type) ? '未找到匹配的论文' : '暂无论文数据'}
                             </td>
                         </tr>
                     `;
@@ -224,6 +274,7 @@
                         <td>
                             <div style="font-weight: 500;">${pub.title}</div>
                             ${pub.doi ? `<div style="font-size: 0.75rem; color: #64748b;">DOI: ${pub.doi}</div>` : ''}
+                            ${renderTypeBadges(pub)}
                         </td>
                         <td>${pub.authors}</td>
                         <td>${pub.journal}</td>
@@ -258,7 +309,7 @@
                         totalPages,
                         (page) => {
                             currentPage = page;
-                            loadPublications(page, currentSearch);
+                            loadPublications(page, currentSearch, currentType);
                         }
                     );
                     paginationContainer.innerHTML = '';
@@ -356,7 +407,7 @@
                 });
                 
                 AdminUtils.showNotification('论文删除成功', 'success');
-                loadPublications(currentPage, currentSearch);
+                loadPublications(currentPage, currentSearch, currentType);
                 
             } catch (error) {
                 console.error('删除论文失败:', error);
@@ -448,7 +499,7 @@
                 }
                 
                 hideModal();
-                loadPublications(currentPage, currentSearch);
+                loadPublications(currentPage, currentSearch, currentType);
                 
             } catch (error) {
                 console.error('保存论文失败:', error);
@@ -486,7 +537,7 @@
                 if (!resp.ok) throw new Error(data.error || '上传失败');
                 AdminUtils.showNotification('PDF上传成功', 'success');
                 hideModal();
-                loadPublications(currentPage, currentSearch);
+                loadPublications(currentPage, currentSearch, currentType);
             } catch (err) {
                 console.error('PDF上传失败:', err);
                 AdminUtils.showNotification('PDF上传失败，请稍后重试', 'error');
@@ -502,11 +553,17 @@
         const debouncedSearch = AdminUtils.debounce((search) => {
             currentSearch = search;
             currentPage = 1;
-            loadPublications(1, search);
+            loadPublications(1, search, currentType);
         }, 300);
         
         searchInput.addEventListener('input', (e) => {
             debouncedSearch(e.target.value.trim());
+        });
+
+        document.getElementById('type-filter').addEventListener('change', (e) => {
+            currentType = e.target.value;
+            currentPage = 1;
+            loadPublications(1, currentSearch, currentType);
         });
         
         // 模态框点击外部关闭

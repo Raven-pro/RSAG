@@ -1,6 +1,82 @@
 // 论文管理API
 import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
+const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
+const TYPE_ALIASES = {
+    '国际会议': 'Conference',
+    '国内会议': 'DomesticConference'
+};
+
+function normalizeTypeValue(type) {
+    const value = String(type || '').trim();
+    if (!value) return '';
+    const mapped = TYPE_ALIASES[value] || value;
+    return ALLOWED_TYPES.has(mapped) ? mapped : '';
+}
+
+function normalizeTypesInput(types, fallbackType) {
+    let candidates = [];
+
+    if (Array.isArray(types)) {
+        candidates = types;
+    } else if (typeof types === 'string' && types.trim()) {
+        const raw = types.trim();
+        if (raw.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    candidates = parsed;
+                } else {
+                    candidates = [raw];
+                }
+            } catch {
+                candidates = raw.split(',');
+            }
+        } else {
+            candidates = raw.split(',');
+        }
+    }
+
+    const fallback = normalizeTypeValue(fallbackType);
+    if (fallback) {
+        candidates.push(fallback);
+    }
+
+    const unique = [];
+    for (const candidate of candidates) {
+        const normalized = normalizeTypeValue(candidate);
+        if (normalized && !unique.includes(normalized)) {
+            unique.push(normalized);
+        }
+    }
+
+    return unique;
+}
+
+function normalizePrimaryType(types, fallbackType) {
+    const normalizedFallback = normalizeTypeValue(fallbackType);
+    const ordered = ['SCI', 'EI', 'Conference', 'DomesticConference'];
+    for (const type of ordered) {
+        if (types.includes(type)) {
+            return type;
+        }
+    }
+    return normalizedFallback || (types[0] || null);
+}
+
+function serializeTypes(types) {
+    return types.length ? JSON.stringify(types) : null;
+}
+
+function hydratePublication(row) {
+    const types = normalizeTypesInput(row?.types, row?.type);
+    return {
+        ...row,
+        type: normalizePrimaryType(types, row?.type),
+        types
+    };
+}
+
 // GET /api/admin/publications - 获取论文列表
 export async function onRequestGet(context) {
     const { request, env } = context;
@@ -13,6 +89,7 @@ export async function onRequestGet(context) {
         const page = parseInt(url.searchParams.get('page') || '1');
         const limit = parseInt(url.searchParams.get('limit') || '10');
         const search = url.searchParams.get('search') || '';
+        const type = normalizeTypeValue(url.searchParams.get('type') || '');
         
         const db = env.DB;
         
@@ -22,12 +99,22 @@ export async function onRequestGet(context) {
         let baseQuery = 'SELECT * FROM publications';
         let countQuery = 'SELECT COUNT(*) as total FROM publications';
         let params = [];
+        const whereConditions = [];
         
         if (search) {
-            const searchCondition = ' WHERE title LIKE ? OR authors LIKE ? OR journal LIKE ?';
-            baseQuery += searchCondition;
-            countQuery += searchCondition;
+            whereConditions.push('(title LIKE ? OR authors LIKE ? OR journal LIKE ?)');
             params = [`%${search}%`, `%${search}%`, `%${search}%`];
+        }
+
+        if (type) {
+            whereConditions.push('(type = ? OR types LIKE ?)');
+            params.push(type, `%"${type}"%`);
+        }
+
+        if (whereConditions.length > 0) {
+            const whereClause = ` WHERE ${whereConditions.join(' AND ')}`;
+            baseQuery += whereClause;
+            countQuery += whereClause;
         }
         
         baseQuery += ' ORDER BY year DESC, created_at DESC';
@@ -41,15 +128,22 @@ export async function onRequestGet(context) {
         const publications = await db.prepare(paginationQuery.query)
             .bind(...params, ...paginationQuery.params)
             .all();
+
+        const rows = (publications.results || []).map(hydratePublication);
+        const safeLimit = Math.max(1, limit);
         
         return createResponse({
-            data: publications.results || [],
+            data: rows,
             pagination: {
                 page,
                 limit,
                 total,
-                totalPages: Math.ceil(total / limit),
+                totalPages: Math.max(1, Math.ceil(total / safeLimit)),
                 currentPage: page
+            },
+            filters: {
+                search,
+                type
             }
         });
         
@@ -70,7 +164,7 @@ export async function onRequestPost(context) {
         const data = await request.json();
         const {
             title, authors, journal, year, volume, doi, url,
-            abstract, keywords, status = 'published'
+            abstract, keywords, type, types, status = 'published'
         } = data;
         
         // 验证必填字段
@@ -81,14 +175,18 @@ export async function onRequestPost(context) {
         const db = env.DB;
         await initDatabase(db);
         
+        const normalizedTypes = normalizeTypesInput(types, type);
+        const normalizedType = normalizePrimaryType(normalizedTypes, type);
+
         const result = await db.prepare(`
             INSERT INTO publications (
                 title, authors, journal, year, volume, doi, url,
-                abstract, keywords, status, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                abstract, keywords, type, types, status, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             title, authors, journal, year, volume || null, doi || null,
-            url || null, abstract || null, keywords || null, status, user.username
+            url || null, abstract || null, keywords || null,
+            normalizedType, serializeTypes(normalizedTypes), status, user.username
         ).run();
         
         // 记录活动日志

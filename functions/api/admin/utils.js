@@ -45,6 +45,8 @@ export async function initDatabase(db) {
                 volume TEXT,
                 doi TEXT,
                 url TEXT,
+                type TEXT,
+                types TEXT,
                 pdf_url TEXT,
                 abstract TEXT,
                 keywords TEXT,
@@ -108,6 +110,8 @@ export async function initDatabase(db) {
             )
         `).run();
 
+        await ensureColumnExists(db, 'publications', 'type', 'TEXT');
+        await ensureColumnExists(db, 'publications', 'types', 'TEXT');
         await ensureColumnExists(db, 'publications', 'pdf_url', 'TEXT');
         await ensureColumnExists(db, 'files', 'category', 'TEXT');
 

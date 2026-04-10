@@ -104,6 +104,33 @@
                 </div>
             </div>
 
+            <!-- 趋势分析 -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                    <h3 style="margin: 0;">运营趋势</h3>
+                    <select id="range-days" class="form-select" style="width: 130px;">
+                        <option value="7">近7天</option>
+                        <option value="30" selected>近30天</option>
+                        <option value="90">近90天</option>
+                        <option value="180">近180天</option>
+                    </select>
+                </div>
+                <div class="card-body">
+                    <div id="trend-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem;"></div>
+                    <div id="trend-rows" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                </div>
+            </div>
+
+            <!-- 类型分布 -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h3>论文类型分布</h3>
+                </div>
+                <div class="card-body">
+                    <div id="publication-type-chart" style="display: flex; flex-direction: column; gap: 0.75rem;"></div>
+                </div>
+            </div>
+
             <!-- 最近活动 -->
             <div class="card" style="margin-top: 2rem;">
                 <div class="card-header">
@@ -152,9 +179,128 @@
 
     <script src="js/admin.js"></script>
     <script>
+        let rangeDays = 30;
+
         // 获取 token
         function getToken() {
             try { return AdminUtils.getToken(); } catch { return window.parent?.localStorage?.getItem('adminToken'); }
+        }
+
+        function renderTrendSummary(stats) {
+            const container = document.getElementById('trend-summary');
+            const trendData = stats?.trends || {};
+            const sum = (list = []) => list.reduce((acc, cur) => acc + (Number(cur) || 0), 0);
+
+            const cards = [
+                { label: '新增论文', value: sum(trendData.publications), color: 'var(--tsinghua-purple)' },
+                { label: '新增新闻', value: sum(trendData.news), color: 'var(--success-green)' },
+                { label: '新增文件', value: sum(trendData.files), color: 'var(--warning-yellow)' }
+            ];
+
+            container.innerHTML = cards.map(card => `
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.9rem;">
+                    <div style="font-size: 0.85rem; color: #64748b;">${card.label}</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: ${card.color}; margin-top: 0.25rem;">${card.value}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderTrendRows(stats) {
+            const container = document.getElementById('trend-rows');
+            const trends = stats?.trends || {};
+            const dates = trends.dates || [];
+            const publications = trends.publications || [];
+            const news = trends.news || [];
+            const files = trends.files || [];
+            const maxValue = Math.max(1, ...publications, ...news, ...files);
+
+            if (!dates.length) {
+                container.innerHTML = '<div style="color:#64748b; text-align:center; padding:1rem;">暂无趋势数据</div>';
+                return;
+            }
+
+            container.innerHTML = dates.map((date, index) => {
+                const monthDay = date.slice(5);
+                const pubWidth = Math.max(4, Math.round(((publications[index] || 0) / maxValue) * 100));
+                const newsWidth = Math.max(4, Math.round(((news[index] || 0) / maxValue) * 100));
+                const filesWidth = Math.max(4, Math.round(((files[index] || 0) / maxValue) * 100));
+
+                return `
+                    <div style="display:grid; grid-template-columns: 54px 1fr; gap: 0.75rem; align-items: center;">
+                        <div style="font-size: 0.8rem; color: #64748b;">${monthDay}</div>
+                        <div style="display: grid; gap: 0.25rem;">
+                            <div style="height: 6px; background: #eef2ff; border-radius: 999px; overflow: hidden;">
+                                <div style="height: 100%; width: ${pubWidth}%; background: #5b21b6;"></div>
+                            </div>
+                            <div style="height: 6px; background: #ecfdf5; border-radius: 999px; overflow: hidden;">
+                                <div style="height: 100%; width: ${newsWidth}%; background: #10b981;"></div>
+                            </div>
+                            <div style="height: 6px; background: #fffbeb; border-radius: 999px; overflow: hidden;">
+                                <div style="height: 100%; width: ${filesWidth}%; background: #f59e0b;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderPublicationTypeDistribution(stats) {
+            const chart = document.getElementById('publication-type-chart');
+            const items = stats?.distributions?.publicationTypes || [];
+            const max = Math.max(1, ...items.map(item => Number(item.count) || 0));
+
+            if (!items.length) {
+                chart.innerHTML = '<div style="color:#64748b; text-align:center; padding:1rem;">暂无类型分布数据</div>';
+                return;
+            }
+
+            const colorMap = {
+                SCI: '#5b21b6',
+                EI: '#2563eb',
+                Conference: '#059669',
+                DomesticConference: '#d97706'
+            };
+
+            chart.innerHTML = items.map(item => {
+                const width = Math.max(5, Math.round(((Number(item.count) || 0) / max) * 100));
+                const color = colorMap[item.type] || '#64748b';
+                return `
+                    <div style="display:grid; grid-template-columns: 110px 1fr 40px; align-items:center; gap: 0.75rem;">
+                        <div style="font-size:0.875rem; color:#334155;">${item.label}</div>
+                        <div style="height: 10px; background: #f1f5f9; border-radius: 999px; overflow: hidden;">
+                            <div style="height:100%; width:${width}%; background:${color};"></div>
+                        </div>
+                        <div style="font-weight:600; color:#1e293b; text-align:right;">${item.count}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderActivities(activities) {
+            const container = document.getElementById('recent-activities');
+            const list = Array.isArray(activities) ? activities : [];
+
+            if (!list.length) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📭</div>
+                        <p>暂无活动记录</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = list.map(a => `
+                <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                    <div class="p-2 rounded-full bg-blue-100 text-blue-600 mr-4">
+                        <span>👤</span>
+                    </div>
+                    <div class="flex-1">
+                        <p class="font-medium text-gray-800">${a.description || a.details || a.action || '活动'}</p>
+                        <p class="text-sm text-gray-500">用户: ${a.user || '-'} • ${new Date(a.timestamp || a.created_at).toLocaleString('zh-CN')}</p>
+                    </div>
+                </div>
+            `).join('');
         }
 
         // 加载统计数据
@@ -163,7 +309,7 @@
                 const token = getToken();
                 if (!token) throw new Error('未找到认证token');
 
-                const response = await fetch('/api/admin/stats', {
+                const response = await fetch(`/api/admin/stats?rangeDays=${rangeDays}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (!response.ok) throw new Error('获取统计数据失败');
@@ -173,8 +319,17 @@
                 document.getElementById('news-count').textContent = stats.news ?? 0;
                 document.getElementById('team-count').textContent = stats.team ?? 0;
                 document.getElementById('files-count').textContent = stats.files ?? 0;
+
+                renderTrendSummary(stats);
+                renderTrendRows(stats);
+                renderPublicationTypeDistribution(stats);
+                renderActivities(stats.recentActivities || []);
+
+                const lastUpdate = stats.lastUpdate ? new Date(stats.lastUpdate).toLocaleString('zh-CN') : '-';
+                document.getElementById('last-update').textContent = lastUpdate;
             } catch (error) {
                 console.error('加载统计数据失败:', error);
+                loadActivities();
             }
         }
 
@@ -191,29 +346,7 @@
 
                 const data = await response.json();
                 const activities = Array.isArray(data) ? data : (data.activities || []);
-                const container = document.getElementById('recent-activities');
-
-                if (!activities.length) {
-                    container.innerHTML = `
-                        <div class="text-center text-gray-500 py-8">
-                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📭</div>
-                            <p>暂无活动记录</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = activities.map(a => `
-                    <div class="flex items-center p-4 bg-gray-50 rounded-lg">
-                        <div class="p-2 rounded-full bg-blue-100 text-blue-600 mr-4">
-                            <span>👤</span>
-                        </div>
-                        <div class="flex-1">
-                            <p class="font-medium text-gray-800">${a.description || a.details || a.action || '活动'}</p>
-                            <p class="text-sm text-gray-500">用户: ${a.user || '-'} • ${new Date(a.timestamp || a.created_at).toLocaleString('zh-CN')}</p>
-                        </div>
-                    </div>
-                `).join('');
+                renderActivities(activities);
             } catch (error) {
                 console.error('加载活动数据失败:', error);
                 const container = document.getElementById('recent-activities');
@@ -227,8 +360,12 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            const rangeSelect = document.getElementById('range-days');
+            rangeSelect?.addEventListener('change', () => {
+                rangeDays = Number.parseInt(rangeSelect.value, 10) || 30;
+                loadStats();
+            });
             loadStats();
-            loadActivities();
         });
     </script>
 </body>
