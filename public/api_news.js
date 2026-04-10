@@ -40,9 +40,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function pickRecentNewsByBudget(items, lang) {
-        const budget = 10;
+        const budget = 14;
         const minItems = 2;
-        const maxItems = 4;
+        const maxItems = 5;
         const selected = [];
         let used = 0;
 
