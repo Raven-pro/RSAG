@@ -120,41 +120,69 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
 
-        if (window.innerWidth < DESKTOP_MIN_WIDTH) {
+        function resetSidebarStyles() {
+            rightColumn.style.height = '';
+            rightColumn.style.overflow = '';
+            newsList.style.maxHeight = '';
+            newsList.style.overflowY = '';
             videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+        }
+
+        function clampNewsListIfNeeded(targetHeight) {
+            if (rightColumn.scrollHeight <= rightColumn.clientHeight + 1) {
+                return;
+            }
+
+            const heading = rightColumn.querySelector('h2');
+            const headingHeight = heading ? heading.getBoundingClientRect().height : 0;
+            const videoHeight = videoBlock.getBoundingClientRect().height;
+            const reserved = headingHeight + videoHeight + BASE_VIDEO_GAP + 28;
+            const maxListHeight = Math.max(96, Math.floor(targetHeight - reserved));
+
+            newsList.style.maxHeight = `${maxListHeight}px`;
+            newsList.style.overflowY = 'auto';
+        }
+
+        if (window.innerWidth < DESKTOP_MIN_WIDTH) {
+            resetSidebarStyles();
             return false;
         }
+
+        const leftHeight = Math.round(leftColumn.getBoundingClientRect().height);
+        if (!Number.isFinite(leftHeight) || leftHeight <= 0) {
+            resetSidebarStyles();
+            return false;
+        }
+
+        rightColumn.style.height = `${leftHeight}px`;
+        rightColumn.style.overflow = 'hidden';
+        videoBlock.style.marginTop = 'auto';
+        newsList.style.maxHeight = '';
+        newsList.style.overflowY = 'hidden';
 
         const maxCount = Math.min(MAX_NEWS_ITEMS, items.length);
         if (maxCount <= 0) {
-            videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
-            return false;
+            return true;
         }
 
-        let chosenCount = 1;
-        videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+        let chosenCount = 0;
 
-        for (let count = 1; count <= maxCount; count += 1) {
+        for (let count = maxCount; count >= 1; count -= 1) {
             renderNewsList(items.slice(0, count), lang);
-            videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
-
-            const leftHeight = leftColumn.getBoundingClientRect().height;
-            const rightHeight = rightColumn.getBoundingClientRect().height;
-
-            if (rightHeight <= leftHeight) {
+            if (rightColumn.scrollHeight <= rightColumn.clientHeight + 1) {
                 chosenCount = count;
-            } else {
                 break;
             }
         }
 
-        renderNewsList(items.slice(0, chosenCount), lang);
-        videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+        if (chosenCount === 0) {
+            renderNewsList(items.slice(0, 1), lang);
+            clampNewsListIfNeeded(leftHeight);
+            return true;
+        }
 
-        const leftHeight = leftColumn.getBoundingClientRect().height;
-        const rightHeight = rightColumn.getBoundingClientRect().height;
-        const extraGap = Math.max(0, Math.round(leftHeight - rightHeight));
-        videoBlock.style.marginTop = `${BASE_VIDEO_GAP + extraGap}px`;
+        renderNewsList(items.slice(0, chosenCount), lang);
+        clampNewsListIfNeeded(leftHeight);
 
         return true;
     }
