@@ -34,8 +34,8 @@ export async function onRequestGet(context) {
         let whereConditions = [];
         
         if (search) {
-            whereConditions.push('(title LIKE ? OR content LIKE ? OR author LIKE ?)');
-            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+            whereConditions.push('(title LIKE ? OR title_en LIKE ? OR content LIKE ? OR content_en LIKE ? OR author LIKE ?)');
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
         }
         
         if (status) {
@@ -96,14 +96,15 @@ export async function onRequestPost(context) {
         const data = await request.json();
         const {
             title, summary, content, author, publish_date,
+            title_en, summary_en, content_en,
             featured_image, category = 'general', tags,
             status = 'draft',
             scheduled_publish_at
         } = data;
         
         // 验证必填字段
-        if (!title || !content || !author || !publish_date) {
-            return createErrorResponse('缺少必填字段', 400);
+        if (!title || !content || !author || !publish_date || !title_en || !content_en) {
+            return createErrorResponse('缺少必填字段（中英文标题与正文都需要填写）', 400);
         }
         
         const db = env.DB;
@@ -117,13 +118,13 @@ export async function onRequestPost(context) {
         
         const result = await db.prepare(`
             INSERT INTO news (
-                title, summary, content, author, publish_date,
+                title, title_en, summary, summary_en, content, content_en, author, publish_date,
                 featured_image, category, tags, status,
                 scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
                 created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-            title, summary || null, content, author, publish_date,
+            title, title_en, summary || null, summary_en || null, content, content_en, author, publish_date,
             featured_image || null, category, tags || null,
             workflow.status, workflow.scheduled_publish_at, workflow.submitted_at, workflow.reviewed_by, workflow.reviewed_at,
             user.username

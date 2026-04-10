@@ -66,8 +66,11 @@ export async function initDatabase(db) {
             CREATE TABLE IF NOT EXISTS news (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
+                title_en TEXT,
                 summary TEXT,
+                summary_en TEXT,
                 content TEXT NOT NULL,
+                content_en TEXT,
                 author TEXT NOT NULL,
                 publish_date DATE NOT NULL,
                 featured_image TEXT,
@@ -129,6 +132,9 @@ export async function initDatabase(db) {
         await ensureColumnExists(db, 'news', 'submitted_at', 'DATETIME');
         await ensureColumnExists(db, 'news', 'reviewed_by', 'TEXT');
         await ensureColumnExists(db, 'news', 'reviewed_at', 'DATETIME');
+        await ensureColumnExists(db, 'news', 'title_en', 'TEXT');
+        await ensureColumnExists(db, 'news', 'summary_en', 'TEXT');
+        await ensureColumnExists(db, 'news', 'content_en', 'TEXT');
         await ensureColumnExists(db, 'files', 'category', 'TEXT');
 
         // 兼容历史状态值，统一映射到新工作流状态

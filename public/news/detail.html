@@ -9,8 +9,11 @@
 <body class="bg-gray-50 text-gray-800">
     <main class="container mx-auto max-w-4xl px-4 py-10">
         <header class="mb-6 flex items-center justify-between gap-4">
-            <a href="/news/total.html" class="text-sm text-purple-700 hover:underline">返回新闻列表</a>
-            <a href="/index.html" class="text-sm text-gray-500 hover:underline">返回首页</a>
+            <a id="back-list-link" href="/news/total.html" class="text-sm text-purple-700 hover:underline">返回新闻列表</a>
+            <div class="flex items-center gap-3">
+                <button id="lang-toggle" class="text-sm rounded border border-purple-200 px-3 py-1 text-purple-700 hover:bg-purple-50">EN</button>
+                <a id="back-home-link" href="/index.html" class="text-sm text-gray-500 hover:underline">返回首页</a>
+            </div>
         </header>
 
         <article class="bg-white border border-gray-200 rounded-xl shadow-sm p-6 md:p-8">
@@ -33,10 +36,64 @@
     </main>
 
     <script>
+        const i18n = {
+            zh: {
+                backList: '返回新闻列表',
+                backHome: '返回首页',
+                loading: '正在加载新闻详情...',
+                missingId: '缺少新闻 ID，请从新闻列表页重新进入。',
+                notFound: '新闻不存在或尚未发布。',
+                badFormat: '返回数据格式错误。',
+                loadFailed: '加载新闻失败',
+                author: '作者',
+                noTitle: '未命名新闻',
+                noBody: '暂无正文内容。',
+                langBtn: 'EN',
+                pageName: '新闻详情'
+            },
+            en: {
+                backList: 'Back to News',
+                backHome: 'Back Home',
+                loading: 'Loading news detail...',
+                missingId: 'Missing news ID. Please open from news list.',
+                notFound: 'News not found or not published yet.',
+                badFormat: 'Unexpected API response format.',
+                loadFailed: 'Failed to load news',
+                author: 'Author',
+                noTitle: 'Untitled News',
+                noBody: 'No content yet.',
+                langBtn: '中文',
+                pageName: 'News Detail'
+            }
+        };
+
+        function resolveLanguage() {
+            const queryLang = new URLSearchParams(window.location.search).get('lang');
+            if (queryLang === 'zh' || queryLang === 'en') return queryLang;
+            const savedLang = localStorage.getItem('preferredLanguage');
+            if (savedLang === 'zh' || savedLang === 'en') return savedLang;
+            return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+        }
+
+        let currentLang = resolveLanguage();
+
+        function applyLanguageTexts() {
+            const t = i18n[currentLang];
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+            document.getElementById('back-list-link').textContent = t.backList;
+            document.getElementById('back-home-link').textContent = t.backHome;
+            document.getElementById('lang-toggle').textContent = t.langBtn;
+            const loading = document.getElementById('loading');
+            if (loading && !loading.classList.contains('hidden')) {
+                loading.textContent = t.loading;
+            }
+            document.title = `${t.pageName} - RSAG`;
+        }
+
         function formatDate(dateStr) {
             const d = new Date(dateStr);
             if (Number.isNaN(d.getTime())) return dateStr || '';
-            return d.toLocaleDateString('zh-CN', {
+            return d.toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'
@@ -53,7 +110,7 @@
         async function loadNewsDetail() {
             const id = new URLSearchParams(window.location.search).get('id');
             if (!id) {
-                showError('缺少新闻 ID，请从新闻列表页重新进入。');
+                showError(i18n[currentLang].missingId);
                 return;
             }
 
@@ -61,7 +118,7 @@
                 const response = await fetch(`/api/news/${encodeURIComponent(id)}`);
                 if (!response.ok) {
                     if (response.status === 404) {
-                        throw new Error('新闻不存在或尚未发布。');
+                        throw new Error(i18n[currentLang].notFound);
                     }
                     throw new Error(`状态码 ${response.status}`);
                 }
@@ -69,18 +126,23 @@
                 const data = await response.json();
                 const item = data.news;
                 if (!item) {
-                    throw new Error('返回数据格式错误。');
+                    throw new Error(i18n[currentLang].badFormat);
                 }
 
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('content').classList.remove('hidden');
 
-                document.getElementById('news-title').textContent = item.title || '未命名新闻';
+                const title = currentLang === 'en' ? (item.title_en || item.title) : (item.title || item.title_en);
+                const summary = currentLang === 'en' ? (item.summary_en || item.summary) : (item.summary || item.summary_en);
+                const content = currentLang === 'en' ? (item.content_en || item.content) : (item.content || item.content_en);
+
+                document.getElementById('news-title').textContent = title || i18n[currentLang].noTitle;
                 document.getElementById('news-date').textContent = formatDate(item.publish_date);
-                document.title = `${item.title || '新闻详情'} - RSAG`;
+                document.title = `${title || i18n[currentLang].pageName} - RSAG`;
 
                 if (item.author) {
                     document.getElementById('news-author').textContent = item.author;
+                    document.getElementById('news-author-wrap').childNodes[0].nodeValue = ` · ${i18n[currentLang].author}：`;
                     document.getElementById('news-author-wrap').classList.remove('hidden');
                 }
 
@@ -90,18 +152,40 @@
                     img.classList.remove('hidden');
                 }
 
-                if (item.summary) {
+                if (summary) {
                     const summary = document.getElementById('news-summary');
-                    summary.textContent = item.summary;
+                    summary.textContent = currentLang === 'en' ? (item.summary_en || item.summary) : (item.summary || item.summary_en);
                     summary.classList.remove('hidden');
                 }
 
-                document.getElementById('news-body').innerHTML = item.content || '<p>暂无正文内容。</p>';
+                document.getElementById('news-body').innerHTML = content || `<p>${i18n[currentLang].noBody}</p>`;
             } catch (error) {
-                showError(`加载新闻失败：${error.message}`);
+                showError(`${i18n[currentLang].loadFailed}：${error.message}`);
             }
         }
 
+        function updateQueryLanguage() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', currentLang);
+            window.history.replaceState({}, '', url.toString());
+
+            const id = url.searchParams.get('id');
+            document.getElementById('back-list-link').href = `/news/total.html?lang=${currentLang}`;
+            if (id) {
+                document.getElementById('back-list-link').href = `/news/total.html?lang=${currentLang}`;
+            }
+        }
+
+        document.getElementById('lang-toggle').addEventListener('click', () => {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            localStorage.setItem('preferredLanguage', currentLang);
+            applyLanguageTexts();
+            updateQueryLanguage();
+            loadNewsDetail();
+        });
+
+        applyLanguageTexts();
+        updateQueryLanguage();
         loadNewsDetail();
     </script>
 </body>

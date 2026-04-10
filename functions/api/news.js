@@ -13,7 +13,7 @@ export async function onRequestGet(context) {
         await initDatabase(db);
 
         const result = await db.prepare(`
-            SELECT id, title, summary, content, author, publish_date, featured_image, category, tags, status,
+            SELECT id, title, title_en, summary, summary_en, content, content_en, author, publish_date, featured_image, category, tags, status,
                    scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
                    created_at, updated_at
             FROM news

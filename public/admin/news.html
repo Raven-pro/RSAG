@@ -120,6 +120,11 @@
                             <label for="title" class="form-label">标题 *</label>
                             <input type="text" id="title" name="title" class="form-input" required>
                         </div>
+
+                        <div class="form-group">
+                            <label for="title_en" class="form-label">英文标题 *</label>
+                            <input type="text" id="title_en" name="title_en" class="form-input" required>
+                        </div>
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
@@ -137,10 +142,20 @@
                             <label for="summary" class="form-label">摘要</label>
                             <textarea id="summary" name="summary" class="form-textarea" rows="3" placeholder="新闻简要描述，将显示在新闻列表中"></textarea>
                         </div>
+
+                        <div class="form-group">
+                            <label for="summary_en" class="form-label">英文摘要</label>
+                            <textarea id="summary_en" name="summary_en" class="form-textarea" rows="3" placeholder="English summary for bilingual site"></textarea>
+                        </div>
                         
                         <div class="form-group">
                             <label for="content" class="form-label">正文内容 *</label>
                             <textarea id="content" name="content" class="form-textarea" rows="12" required placeholder="支持HTML格式"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="content_en" class="form-label">英文正文 *</label>
+                            <textarea id="content_en" name="content_en" class="form-textarea" rows="12" required placeholder="English content, HTML supported"></textarea>
                         </div>
                         
                         <div class="form-group">
@@ -379,6 +394,7 @@
                         <td><input type="checkbox" class="news-row-select" data-id="${newsItem.id}"></td>
                         <td>
                             <div style="font-weight: 500;">${newsItem.title}</div>
+                            ${newsItem.title_en ? `<div style="font-size: 0.75rem; color: #334155; margin-top: 0.2rem;">EN: ${newsItem.title_en}</div>` : ''}
                             ${newsItem.summary ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${newsItem.summary.substring(0, 100)}${newsItem.summary.length > 100 ? '...' : ''}</div>` : ''}
                             
                         </td>
@@ -526,6 +542,7 @@
                     <article style="max-width: none;">
                         <header style="margin-bottom: 2rem; text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
                             <h1 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.75rem;">${news.title}</h1>
+                            ${news.title_en ? `<h2 style="margin: 0 0 1rem 0; color: #334155; font-size: 1.05rem; font-weight: 500;">${news.title_en}</h2>` : ''}
                             <div style="color: #64748b; font-size: 0.875rem;">
                                 <span>作者: ${news.author}</span>
                                 <span style="margin: 0 1rem;">•</span>
@@ -536,6 +553,7 @@
                         <div style="line-height: 1.8; color: #374151;">
                             ${news.content}
                         </div>
+                        ${news.content_en ? `<div style="line-height: 1.8; color: #1f2937; margin-top: 1.2rem; padding-top: 1rem; border-top: 1px dashed #d1d5db;">${news.content_en}</div>` : ''}
                         ${news.tags ? `
                             <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
                                 <strong style="color: #64748b; font-size: 0.875rem;">标签: </strong>
@@ -603,9 +621,11 @@
             const formData = new FormData(form);
             
             const title = formData.get('title') || '无标题';
+            const titleEn = formData.get('title_en') || 'Untitled';
             const author = formData.get('author') || '未知作者';
             const publishDate = formData.get('publish_date') || new Date().toISOString().split('T')[0];
             const content = formData.get('content') || '暂无内容';
+            const contentEn = formData.get('content_en') || 'No content yet';
             const featuredImage = formData.get('featured_image');
             const tags = formData.get('tags');
             
@@ -614,6 +634,7 @@
                 <article style="max-width: none;">
                     <header style="margin-bottom: 2rem; text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
                         <h1 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.75rem;">${title}</h1>
+                        <h2 style="margin: 0 0 1rem 0; color: #334155; font-size: 1.05rem; font-weight: 500;">${titleEn}</h2>
                         <div style="color: #64748b; font-size: 0.875rem;">
                             <span>作者: ${author}</span>
                             <span style="margin: 0 1rem;">•</span>
@@ -623,6 +644,9 @@
                     ${featuredImage ? `<img src="${featuredImage}" alt="特色图片" style="width: 100%; max-height: 300px; object-fit: cover; border-radius: 8px; margin-bottom: 1.5rem;">` : ''}
                     <div style="line-height: 1.8; color: #374151;">
                         ${content}
+                    </div>
+                    <div style="line-height: 1.8; color: #1f2937; margin-top: 1.2rem; padding-top: 1rem; border-top: 1px dashed #d1d5db;">
+                        ${contentEn}
                     </div>
                     ${tags ? `
                         <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
@@ -667,7 +691,9 @@
             // 表单验证
             const isValid = AdminUtils.validateForm(form, {
                 title: { required: true, message: '请输入新闻标题' },
+                title_en: { required: true, message: '请输入英文新闻标题' },
                 content: { required: true, message: '请输入新闻内容' },
+                content_en: { required: true, message: '请输入英文新闻内容' },
                 publish_date: { required: true, message: '请选择发布日期' }
             });
             

@@ -10,10 +10,13 @@
     <main class="container mx-auto max-w-4xl px-4 py-10">
         <header class="mb-8">
             <div class="flex items-center justify-between gap-4">
-                <h1 class="text-3xl md:text-4xl font-bold text-purple-800">新闻动态</h1>
-                <a href="/index.html" class="text-sm text-purple-700 hover:underline">返回首页</a>
+                <h1 id="page-title" class="text-3xl md:text-4xl font-bold text-purple-800">新闻动态</h1>
+                <div class="flex items-center gap-3">
+                    <button id="lang-toggle" class="text-sm rounded border border-purple-200 px-3 py-1 text-purple-700 hover:bg-purple-50">EN</button>
+                    <a id="back-home-link" href="/index.html" class="text-sm text-purple-700 hover:underline">返回首页</a>
+                </div>
             </div>
-            <p class="mt-3 text-sm text-gray-500">本页内容由后台发布新闻自动生成。</p>
+            <p id="page-desc" class="mt-3 text-sm text-gray-500">本页内容由后台发布新闻自动生成。</p>
         </header>
 
         <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5 md:p-6">
@@ -24,10 +27,55 @@
     </main>
 
     <script>
+        const i18n = {
+            zh: {
+                title: '新闻动态',
+                desc: '本页内容由后台发布新闻自动生成。',
+                backHome: '返回首页',
+                loading: '正在加载新闻...',
+                noNews: '暂无新闻。',
+                unnamed: '未命名新闻',
+                noSummary: '暂无摘要',
+                loadFailed: '加载新闻失败',
+                langBtn: 'EN'
+            },
+            en: {
+                title: 'News',
+                desc: 'This page is generated from admin-published news.',
+                backHome: 'Back Home',
+                loading: 'Loading news...',
+                noNews: 'No news yet.',
+                unnamed: 'Untitled News',
+                noSummary: 'No summary',
+                loadFailed: 'Failed to load news',
+                langBtn: '中文'
+            }
+        };
+
+        function resolveLanguage() {
+            const queryLang = new URLSearchParams(window.location.search).get('lang');
+            if (queryLang === 'zh' || queryLang === 'en') return queryLang;
+            const savedLang = localStorage.getItem('preferredLanguage');
+            if (savedLang === 'zh' || savedLang === 'en') return savedLang;
+            return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+        }
+
+        let currentLang = resolveLanguage();
+
+        function applyLanguageTexts() {
+            const t = i18n[currentLang];
+            document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+            document.getElementById('page-title').textContent = t.title;
+            document.getElementById('page-desc').textContent = t.desc;
+            document.getElementById('back-home-link').textContent = t.backHome;
+            document.getElementById('lang-toggle').textContent = t.langBtn;
+            document.title = `${t.title} - RSAG`;
+        }
+
         function formatDate(dateStr) {
             const d = new Date(dateStr);
             if (Number.isNaN(d.getTime())) return dateStr || '';
-            return d.toLocaleDateString('zh-CN', {
+            return d.toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'
@@ -43,6 +91,7 @@
 
         async function loadNews() {
             const listEl = document.getElementById('news-list');
+            listEl.innerHTML = `<li class="rounded-lg border border-gray-200 p-4 text-gray-500">${i18n[currentLang].loading}</li>`;
             try {
                 const response = await fetch('/api/news');
                 if (!response.ok) {
@@ -53,17 +102,20 @@
                 const news = Array.isArray(data.news) ? data.news : [];
 
                 if (news.length === 0) {
-                    listEl.innerHTML = '<li class="rounded-lg border border-gray-200 p-4 text-gray-500">暂无新闻。</li>';
+                    listEl.innerHTML = `<li class="rounded-lg border border-gray-200 p-4 text-gray-500">${i18n[currentLang].noNews}</li>`;
                     return;
                 }
 
                 listEl.innerHTML = news.map(item => {
-                    const summary = item.summary || stripHtml(item.content);
-                    const preview = summary ? (summary.length > 120 ? `${summary.slice(0, 120)}...` : summary) : '暂无摘要';
+                    const title = currentLang === 'en' ? (item.title_en || item.title) : (item.title || item.title_en);
+                    const summaryRaw = currentLang === 'en'
+                        ? (item.summary_en || item.summary || stripHtml(item.content_en || item.content))
+                        : (item.summary || item.summary_en || stripHtml(item.content || item.content_en));
+                    const preview = summaryRaw ? (summaryRaw.length > 120 ? `${summaryRaw.slice(0, 120)}...` : summaryRaw) : i18n[currentLang].noSummary;
                     return `
                         <li class="rounded-lg border border-gray-200 p-4 hover:border-purple-300 transition-colors">
-                            <a href="/news/detail.html?id=${encodeURIComponent(item.id)}" class="group block">
-                                <h2 class="text-lg md:text-xl font-semibold text-purple-700 group-hover:underline">${item.title || '未命名新闻'}</h2>
+                            <a href="/news/detail.html?id=${encodeURIComponent(item.id)}&lang=${currentLang}" class="group block">
+                                <h2 class="text-lg md:text-xl font-semibold text-purple-700 group-hover:underline">${title || i18n[currentLang].unnamed}</h2>
                                 <p class="mt-1 text-sm text-gray-500">${formatDate(item.publish_date)}</p>
                                 <p class="mt-2 text-gray-700 leading-7">${preview}</p>
                             </a>
@@ -73,12 +125,28 @@
             } catch (error) {
                 listEl.innerHTML = `
                     <li class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-                        加载新闻失败：${error.message}
+                        ${i18n[currentLang].loadFailed}: ${error.message}
                     </li>
                 `;
             }
         }
 
+        function updateQueryLanguage() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', currentLang);
+            window.history.replaceState({}, '', url.toString());
+        }
+
+        document.getElementById('lang-toggle').addEventListener('click', () => {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            localStorage.setItem('preferredLanguage', currentLang);
+            applyLanguageTexts();
+            updateQueryLanguage();
+            loadNews();
+        });
+
+        applyLanguageTexts();
+        updateQueryLanguage();
         loadNews();
     </script>
 </body>

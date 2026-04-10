@@ -355,7 +355,8 @@
              }
 
             // Store language preference (optional)
-            // localStorage.setItem('preferredLanguage', lang);
+            localStorage.setItem('preferredLanguage', lang);
+            window.dispatchEvent(new CustomEvent('rsag-language-change', { detail: { lang } }));
         }
 
         // --- Language Toggle Button Handler ---
@@ -566,11 +567,8 @@
 
         // --- Initial Setup ---
         // Check localStorage for saved language preference (optional)
-        // const savedLang = localStorage.getItem('preferredLanguage');
-        // setLanguage(savedLang || 'zh'); // Load saved lang or default to Chinese
-
-        // Set initial language (defaulting to Chinese 'zh')
-        setLanguage('zh');
+        const savedLang = localStorage.getItem('preferredLanguage');
+        setLanguage(savedLang === 'en' || savedLang === 'zh' ? savedLang : 'zh');
 
         // 页面初始如存在 hash（例如从后台返回后或外部深链），执行平滑滚动并清理URL
         if (window.location.hash) {
