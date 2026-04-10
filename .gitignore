@@ -4,6 +4,7 @@ node_modules/
 # Build artifacts
 .cf-build/
 .tmp_worker.js
+_worker.bundle
 
 # Wrangler local state
 .wrangler/
