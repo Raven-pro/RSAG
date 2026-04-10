@@ -255,12 +255,12 @@
                 return;
             }
 
-            const width = 920;
+            const width = Math.max(920, dates.length * 56);
             const height = 300;
             const leftPad = 42;
             const rightPad = 14;
             const topPad = 16;
-            const bottomPad = 20;
+            const bottomPad = 18;
             const innerWidth = width - leftPad - rightPad;
             const innerHeight = height - topPad - bottomPad;
 
@@ -286,20 +286,9 @@
                 return `<line x1="${x}" y1="${topPad}" x2="${x}" y2="${topPad + innerHeight}" stroke="#f1f5f9" />`;
             }).join('');
 
-            const maxTickCount = 8;
-            const tickStep = Math.max(1, Math.ceil(dates.length / maxTickCount));
-            const tickIndexes = [];
-            for (let i = 0; i < dates.length; i += tickStep) {
-                tickIndexes.push(i);
-            }
-            if (tickIndexes[tickIndexes.length - 1] !== dates.length - 1) {
-                tickIndexes.push(dates.length - 1);
-            }
-
-            const xTickLabels = tickIndexes.map((index) => {
+            const xTickLabels = dates.map((date, index) => {
                 const x = dates.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (dates.length - 1);
-                const leftPercent = (x / width) * 100;
-                return `<span style="position:absolute; left:${leftPercent}%; transform:translateX(-50%); font-size:10px; color:#64748b; white-space:nowrap; line-height:1;">${dates[index].slice(5)}</span>`;
+                return `<span style="position:absolute; left:${x}px; top:0; transform:translateX(-50%) rotate(-55deg); transform-origin: top center; font-size:13px; font-weight:500; color:#64748b; white-space:nowrap; line-height:1;">${date.slice(5)}</span>`;
             }).join('');
 
             container.innerHTML = `
@@ -309,8 +298,8 @@
                     <span style="display:inline-flex; align-items:center; gap:0.4rem;"><span style="width:10px; height:10px; border-radius:50%; background:#f59e0b;"></span>文件</span>
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:12px; padding:0.5rem; background:#ffffff; overflow-x:auto;">
-                    <div style="min-width:760px;">
-                        <svg viewBox="0 0 ${width} ${height}" style="width:100%; display:block;" role="img" aria-label="运营趋势折线图">
+                    <div style="width:${width}px;">
+                        <svg viewBox="0 0 ${width} ${height}" style="width:${width}px; display:block;" role="img" aria-label="运营趋势折线图">
                             ${yGrid}
                             ${xGrid}
                             <path d="${pubPath}" fill="none" stroke="#5b21b6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
@@ -320,7 +309,7 @@
                             ${buildPointDots(newsPoints, '#10b981', '#d1fae5')}
                             ${buildPointDots(filesPoints, '#f59e0b', '#fef3c7')}
                         </svg>
-                        <div style="position:relative; height:16px; margin-top:2px;">
+                        <div style="position:relative; width:${width}px; height:70px; margin-top:2px;">
                             ${xTickLabels}
                         </div>
                     </div>
