@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账号管理 - RSAG</title>
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="admin-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>RSAG 管理</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item" data-role="admin">
+                    📊 仪表板
+                </a>
+                <a href="publications.html" class="nav-item" data-role="admin">
+                    📚 论文管理
+                </a>
+                <a href="news.html" class="nav-item">
+                    📰 新闻管理
+                </a>
+                <a href="team.html" class="nav-item" data-role="admin">
+                    👥 团队管理
+                </a>
+                <a href="files.html" class="nav-item" data-role="admin">
+                    📁 文件管理
+                </a>
+                <a href="users.html" class="nav-item active" data-role="admin">
+                    🔐 账号管理
+                </a>
+                <button class="nav-item logout">
+                    🚪 退出登录
+                </button>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div class="content-header">
+                <h1>账号管理</h1>
+                <p>管理员可创建成员账号，并对成员账号进行启停与密码重置</p>
+            </div>
+
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <input type="text" class="search-input" placeholder="搜索用户名..." id="search-input">
+                        <div class="search-icon">🔍</div>
+                    </div>
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn btn-primary" id="add-user-btn">
+                        ➕ 创建成员账号
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>用户名</th>
+                                    <th>角色</th>
+                                    <th>状态</th>
+                                    <th>创建者</th>
+                                    <th>最近登录</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-tbody">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; padding: 2rem;">
+                                        <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                                        加载中...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="user-modal" style="display:none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+        <div style="min-height: 100vh; display:flex; align-items:center; justify-content:center; padding:2rem;">
+            <div style="background: white; border-radius:8px; width:100%; max-width:520px;">
+                <div class="card-header">
+                    <h3>创建成员账号</h3>
+                </div>
+                <div class="card-body">
+                    <form id="user-form">
+                        <div class="form-group">
+                            <label for="username" class="form-label">用户名 *</label>
+                            <input type="text" id="username" name="username" class="form-input" placeholder="3-32位，支持字母/数字/._-" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password" class="form-label">初始密码 *</label>
+                            <input type="password" id="password" name="password" class="form-input" placeholder="至少8位" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="role" class="form-label">角色</label>
+                            <select id="role" name="role" class="form-select" disabled>
+                                <option value="member" selected>成员</option>
+                            </select>
+                            <div style="color:#64748b; font-size: 0.75rem; margin-top: 0.3rem;">当前仅允许创建成员账号</div>
+                        </div>
+
+                        <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:2rem;">
+                            <button type="button" class="btn btn-secondary" id="cancel-user-btn">取消</button>
+                            <button type="submit" class="btn btn-primary" id="save-user-btn">创建账号</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/admin.js"></script>
+    <script>
+        let allUsers = [];
+        let keyword = '';
+
+        function formatRole(role) {
+            return role === 'admin' ? '管理员' : '成员';
+        }
+
+        function formatStatus(active) {
+            return Number.parseInt(active, 10) === 1 ? '启用' : '禁用';
+        }
+
+        function statusClass(active) {
+            return Number.parseInt(active, 10) === 1 ? 'status-success' : 'status-error';
+        }
+
+        function filterUsers() {
+            if (!keyword) return allUsers;
+            return allUsers.filter((u) => String(u.username || '').toLowerCase().includes(keyword));
+        }
+
+        function renderUsers() {
+            const tbody = document.getElementById('users-tbody');
+            const users = filterUsers();
+
+            if (!users.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">暂无账号数据</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = users.map((user) => {
+                const isAdmin = user.role === 'admin';
+                return `
+                    <tr>
+                        <td><strong>${user.username}</strong></td>
+                        <td>${formatRole(user.role)}</td>
+                        <td>
+                            <span class="status-badge ${statusClass(user.is_active)}">${formatStatus(user.is_active)}</span>
+                        </td>
+                        <td>${user.created_by || '-'}</td>
+                        <td>${user.last_login_at ? AdminUtils.formatDate(user.last_login_at) : '-'}</td>
+                        <td>
+                            ${isAdmin ? '<span style="color:#64748b;">超级管理员</span>' : `
+                                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                    <button class="btn btn-small btn-secondary" onclick="resetUserPassword(${user.id}, '${user.username}')">重置密码</button>
+                                    <button class="btn btn-small ${Number.parseInt(user.is_active, 10) === 1 ? 'btn-danger' : 'btn-success'}" onclick="toggleUserStatus(${user.id}, '${user.username}', ${Number.parseInt(user.is_active, 10) === 1 ? 1 : 0})">
+                                        ${Number.parseInt(user.is_active, 10) === 1 ? '停用' : '启用'}
+                                    </button>
+                                </div>
+                            `}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadUsers() {
+            try {
+                const result = await AdminUtils.apiRequest('/users');
+                allUsers = result.users || [];
+                renderUsers();
+            } catch (error) {
+                console.error('加载账号失败:', error);
+                AdminUtils.showNotification('加载账号失败，请稍后重试', 'error');
+            }
+        }
+
+        function showUserModal() {
+            const form = document.getElementById('user-form');
+            form.reset();
+            document.getElementById('user-modal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideUserModal() {
+            document.getElementById('user-modal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        async function createUser(event) {
+            event.preventDefault();
+
+            const form = event.target;
+            const data = Object.fromEntries(new FormData(form));
+            data.role = 'member';
+
+            const valid = AdminUtils.validateForm(form, {
+                username: {
+                    required: true,
+                    pattern: /^[A-Za-z0-9_.-]{3,32}$/,
+                    message: '用户名需为3-32位，仅支持字母、数字、下划线、点和连字符'
+                },
+                password: { required: true, minLength: 8, message: '密码至少8位' }
+            });
+            if (!valid) return;
+
+            const saveBtn = document.getElementById('save-user-btn');
+            saveBtn.disabled = true;
+
+            try {
+                await AdminUtils.apiRequest('/users', {
+                    method: 'POST',
+                    body: data
+                });
+                AdminUtils.showNotification('成员账号创建成功', 'success');
+                hideUserModal();
+                await loadUsers();
+            } catch (error) {
+                console.error('创建账号失败:', error);
+                AdminUtils.showNotification(error.message || '创建账号失败', 'error');
+            } finally {
+                saveBtn.disabled = false;
+            }
+        }
+
+        async function resetUserPassword(id, username) {
+            const newPassword = prompt(`请输入 ${username} 的新密码（至少8位）`);
+            if (!newPassword) return;
+            if (newPassword.length < 8) {
+                AdminUtils.showNotification('密码至少需要8位', 'error');
+                return;
+            }
+
+            try {
+                await AdminUtils.apiRequest(`/users/${id}`, {
+                    method: 'PUT',
+                    body: { password: newPassword }
+                });
+                AdminUtils.showNotification(`已重置 ${username} 的密码`, 'success');
+                await loadUsers();
+            } catch (error) {
+                console.error('重置密码失败:', error);
+                AdminUtils.showNotification(error.message || '重置密码失败', 'error');
+            }
+        }
+
+        async function toggleUserStatus(id, username, currentStatus) {
+            const targetStatus = currentStatus === 1 ? 0 : 1;
+            const actionText = targetStatus === 1 ? '启用' : '停用';
+
+            const confirmed = await AdminUtils.showConfirm(`确定要${actionText}账号 ${username} 吗？`);
+            if (!confirmed) return;
+
+            try {
+                await AdminUtils.apiRequest(`/users/${id}`, {
+                    method: 'PUT',
+                    body: { is_active: targetStatus }
+                });
+                AdminUtils.showNotification(`账号${actionText}成功`, 'success');
+                await loadUsers();
+            } catch (error) {
+                console.error('更新账号状态失败:', error);
+                AdminUtils.showNotification(error.message || '更新失败', 'error');
+            }
+        }
+
+        document.getElementById('add-user-btn').addEventListener('click', showUserModal);
+        document.getElementById('cancel-user-btn').addEventListener('click', hideUserModal);
+        document.getElementById('user-form').addEventListener('submit', createUser);
+
+        document.getElementById('search-input').addEventListener('input', (event) => {
+            keyword = String(event.target.value || '').trim().toLowerCase();
+            renderUsers();
+        });
+
+        document.getElementById('user-modal').addEventListener('click', (event) => {
+            if (event.target.id === 'user-modal') {
+                hideUserModal();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadUsers();
+        });
+
+        window.resetUserPassword = resetUserPassword;
+        window.toggleUserStatus = toggleUserStatus;
+    </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 // 论文管理API
-import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { authenticate, requireAdmin, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 import { normalizeWorkflowStatus, parseWorkflowStatusFilter, buildWorkflowOnCreate } from './workflow.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
@@ -85,7 +85,8 @@ export async function onRequestGet(context) {
     
     try {
         // 认证检查
-        await authenticate(request, env);
+        const user = await authenticate(request, env);
+        requireAdmin(user);
         
         const url = new URL(request.url);
         const page = parseInt(url.searchParams.get('page') || '1');
@@ -158,7 +159,7 @@ export async function onRequestGet(context) {
         
     } catch (error) {
         console.error('获取论文列表失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
@@ -169,6 +170,7 @@ export async function onRequestPost(context) {
     try {
         // 认证检查
         const user = await authenticate(request, env);
+        requireAdmin(user);
         
         const data = await request.json();
         const {
@@ -223,7 +225,7 @@ export async function onRequestPost(context) {
         
     } catch (error) {
         console.error('添加论文失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

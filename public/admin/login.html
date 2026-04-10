@@ -85,7 +85,7 @@
                     
                     // 延迟跳转以显示成功消息
                     setTimeout(() => {
-                        window.location.href = '/admin/dashboard';
+                        window.location.href = AdminUtils.getDefaultLandingPath();
                     }, 1000);
                 } else {
                     AdminUtils.showNotification(data.error || '登录失败', 'error');
@@ -103,7 +103,7 @@
         
         // 如果已经登录，直接跳转到仪表板
         if (AdminUtils.isAuthenticated()) {
-            window.location.href = '/admin/dashboard';
+            window.location.href = AdminUtils.getDefaultLandingPath();
         }
     </script>
 </body>

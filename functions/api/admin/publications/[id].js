@@ -1,4 +1,4 @@
-import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
 import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
@@ -83,7 +83,8 @@ export async function onRequestGet(context) {
     const { request, env, params } = context;
 
     try {
-        await authenticate(request, env);
+        const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -101,7 +102,7 @@ export async function onRequestGet(context) {
         return createResponse(hydratePublication(publication));
     } catch (error) {
         console.error('获取论文失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
@@ -111,6 +112,7 @@ export async function onRequestPut(context) {
 
     try {
         const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -165,7 +167,7 @@ export async function onRequestPut(context) {
         });
     } catch (error) {
         console.error('更新论文失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
@@ -175,6 +177,7 @@ export async function onRequestDelete(context) {
 
     try {
         const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -196,7 +199,7 @@ export async function onRequestDelete(context) {
         return createResponse({ message: '论文删除成功' });
     } catch (error) {
         console.error('删除论文失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

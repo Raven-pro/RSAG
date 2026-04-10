@@ -1,4 +1,4 @@
-import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
 import { resolveUploadsBucket } from '../file-utils.js';
 
 // GET /api/admin/files/[id]
@@ -6,7 +6,8 @@ export async function onRequestGet(context) {
     const { request, env, params } = context;
 
     try {
-        await authenticate(request, env);
+        const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const id = Number.parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -29,7 +30,7 @@ export async function onRequestGet(context) {
         return createResponse(file);
     } catch (error) {
         console.error('获取文件详情失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
@@ -39,6 +40,7 @@ export async function onRequestDelete(context) {
 
     try {
         const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const id = Number.parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -72,7 +74,7 @@ export async function onRequestDelete(context) {
         return createResponse({ message: '文件删除成功' });
     } catch (error) {
         console.error('删除文件失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

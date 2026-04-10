@@ -1,4 +1,4 @@
-import { authenticate, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { authenticate, requireAdmin, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 function parsePositiveInt(value, fallback) {
     const parsed = Number.parseInt(value || '', 10);
@@ -10,7 +10,8 @@ export async function onRequestGet(context) {
     const { request, env } = context;
 
     try {
-        await authenticate(request, env);
+        const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const url = new URL(request.url);
         const page = parsePositiveInt(url.searchParams.get('page'), 1);
@@ -74,7 +75,7 @@ export async function onRequestGet(context) {
         });
     } catch (error) {
         console.error('获取文件列表失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

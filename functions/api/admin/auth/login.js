@@ -1,60 +1,94 @@
 // 管理后台认证API
+import { ensureUsersSchema, ensureDefaultAdminUser, normalizeRole, verifyPassword } from './security.js';
+
 export async function onRequestPost(context) {
     const { request, env } = context;
     
     try {
-        const { username, password } = await request.json();
-        
-        // 使用环境变量中的凭据，提供默认回退以防未设置
-        const validUsers = {
-            [env.ADMIN_USERNAME || 'admin']: env.ADMIN_PASSWORD || 'rsag2025!', // 管理员账号
-            'editor': env.EDITOR_PASSWORD || 'rsag_edit2025' // 编辑员账号
-        };
-        
-        if (!validUsers[username] || validUsers[username] !== password) {
-            return new Response(JSON.stringify({
-                error: '用户名或密码错误'
-            }), {
-                status: 401,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+        const body = await request.json();
+        const username = String(body?.username || '').trim();
+        const password = String(body?.password || '');
+
+        if (!username || !password) {
+            return jsonResponse({ error: '请输入用户名和密码' }, 400);
         }
+
+        const db = env.DB;
+        if (!db) {
+            return jsonResponse({ error: '数据库未配置' }, 500);
+        }
+
+        await ensureUsersSchema(db);
+        await ensureDefaultAdminUser(db, env);
+
+        const user = await db.prepare(`
+            SELECT id, username, password_hash, role, is_active
+            FROM users
+            WHERE username = ?
+            LIMIT 1
+        `).bind(username).first();
+
+        if (!user) {
+            return jsonResponse({ error: '用户名或密码错误' }, 401);
+        }
+
+        if (Number.parseInt(user.is_active, 10) !== 1) {
+            return jsonResponse({ error: '账号已被禁用，请联系管理员' }, 403);
+        }
+
+        const passwordValid = await verifyPassword(password, user.password_hash);
+        if (!passwordValid) {
+            return jsonResponse({ error: '用户名或密码错误' }, 401);
+        }
+
+        const role = normalizeRole(user.role);
+
+        if (String(user.role || '').toLowerCase() !== role) {
+            await db.prepare(`
+                UPDATE users
+                SET role = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).bind(role, user.id).run();
+        }
+
+        await db.prepare(`
+            UPDATE users
+            SET last_login_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).bind(user.id).run();
         
         // 生成JWT token（简化版本）
         const payload = {
-            username,
-            role: username === 'admin' ? 'admin' : 'editor',
+            userId: user.id,
+            username: user.username,
+            role,
             exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24小时过期
         };
         
         const token = await generateJWT(payload, env.JWT_SECRET || 'rsag-secret-key-2025');
         
-        return new Response(JSON.stringify({
+        return jsonResponse({
             token,
             user: {
-                username,
-                role: payload.role
+                id: user.id,
+                username: user.username,
+                role
             }
-        }), {
-            status: 200,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
+        }, 200);
         
     } catch (error) {
         console.error('登录处理错误:', error);
-        return new Response(JSON.stringify({
-            error: '服务器内部错误'
-        }), {
-            status: 500,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
+        return jsonResponse({ error: '服务器内部错误' }, 500);
     }
+}
+
+function jsonResponse(data, status = 200) {
+    return new Response(JSON.stringify(data), {
+        status,
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
 }
 
 // 简化的JWT生成函数
@@ -120,7 +154,10 @@ export async function verifyJWT(token, secret) {
             throw new Error('Invalid signature');
         }
         
-        const decodedPayload = JSON.parse(atob(payload.replace(/[-_]/g, char => char === '-' ? '+' : '/')));
+        const payloadBase64 = payload.replace(/[-_]/g, char => char === '-' ? '+' : '/');
+        const paddedPayload = payloadBase64 + '==='.slice((payloadBase64.length + 3) % 4);
+        const decodedPayload = JSON.parse(atob(paddedPayload));
+        decodedPayload.role = normalizeRole(decodedPayload.role);
         
         if (decodedPayload.exp && decodedPayload.exp < Date.now() / 1000) {
             throw new Error('Token expired');

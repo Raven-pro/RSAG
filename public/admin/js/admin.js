@@ -1,8 +1,62 @@
 // 管理后台工具库
 class AdminUtils {
     static baseURL = '/api/admin';
-    static loginPath = '/admin/login';
-    static dashboardPath = '/admin/dashboard';
+    static loginPath = '/admin/login.html';
+    static dashboardPath = '/admin/dashboard.html';
+    static memberHomePath = '/admin/news.html';
+
+    static normalizeRole(role) {
+        const value = String(role || '').trim().toLowerCase();
+        if (value === 'admin') return 'admin';
+        if (value === 'editor') return 'member';
+        return 'member';
+    }
+
+    static parseTokenPayload(token = this.getToken()) {
+        if (!token) return null;
+        try {
+            const rawPayload = String(token.split('.')[1] || '');
+            const base64 = rawPayload.replace(/-/g, '+').replace(/_/g, '/');
+            const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+            const payload = JSON.parse(atob(padded));
+            payload.role = this.normalizeRole(payload.role);
+            return payload;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    static getCurrentUser() {
+        const payload = this.parseTokenPayload();
+        if (!payload) return null;
+        return {
+            id: payload.userId,
+            username: payload.username,
+            role: payload.role
+        };
+    }
+
+    static getCurrentRole() {
+        const user = this.getCurrentUser();
+        return user?.role || 'member';
+    }
+
+    static isAdmin() {
+        return this.getCurrentRole() === 'admin';
+    }
+
+    static getDefaultLandingPath() {
+        return this.isAdmin() ? this.dashboardPath : this.memberHomePath;
+    }
+
+    static isMemberAllowedPath(pathname = window.location.pathname) {
+        return [
+            '/admin/news',
+            '/admin/news.html',
+            '/admin/login',
+            '/admin/login.html'
+        ].includes(pathname);
+    }
 
     static isLoginRoute(pathname = window.location.pathname) {
         return pathname === '/admin/login' || pathname === '/admin/login.html' || pathname.endsWith('/admin/login');
@@ -31,7 +85,8 @@ class AdminUtils {
         if (!token) return false;
         
         try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
+            const payload = this.parseTokenPayload(token);
+            if (!payload) return false;
             return payload.exp > Date.now() / 1000;
         } catch (e) {
             return false;
@@ -315,9 +370,18 @@ class AdminUtils {
     // 初始化侧边栏导航
     static initSidebar() {
         const currentPath = window.location.pathname;
+        const currentRole = this.getCurrentRole();
         const navItems = document.querySelectorAll('.nav-item');
+
+        this.applyRoleVisibility();
         
         navItems.forEach(item => {
+            const requiredRole = item.getAttribute('data-role');
+            if (requiredRole && this.normalizeRole(requiredRole) !== currentRole) {
+                item.style.display = 'none';
+                return;
+            }
+
             const href = item.getAttribute('href');
             if (href && currentPath.includes(href.split('/').pop().split('.')[0])) {
                 item.classList.add('active');
@@ -336,6 +400,29 @@ class AdminUtils {
             }
         });
     }
+
+    static applyRoleVisibility(root = document) {
+        const role = this.getCurrentRole();
+
+        root.querySelectorAll('[data-role]').forEach((el) => {
+            const required = String(el.getAttribute('data-role') || '').trim();
+            if (!required) return;
+            const requiredRole = this.normalizeRole(required);
+            if (requiredRole !== role) {
+                el.style.display = 'none';
+            }
+        });
+
+        root.querySelectorAll('[data-hide-for]').forEach((el) => {
+            const roles = String(el.getAttribute('data-hide-for') || '')
+                .split(',')
+                .map((item) => this.normalizeRole(item))
+                .filter(Boolean);
+            if (roles.includes(role)) {
+                el.style.display = 'none';
+            }
+        });
+    }
     
     // 检查登录状态
     static checkAuth() {
@@ -343,6 +430,13 @@ class AdminUtils {
             window.location.href = this.loginPath;
             return false;
         }
+
+        const role = this.getCurrentRole();
+        if (role === 'member' && !this.isMemberAllowedPath(window.location.pathname)) {
+            window.location.href = this.memberHomePath;
+            return false;
+        }
+
         return true;
     }
 }

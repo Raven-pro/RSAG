@@ -1,4 +1,11 @@
 // 数据库工具函数和认证中间件
+import { ensureUsersSchema, normalizeRole } from './auth/security.js';
+
+function createHttpError(message, status = 500) {
+    const error = new Error(message);
+    error.status = status;
+    return error;
+}
 
 // 认证中间件
 export async function authenticate(request, env) {
@@ -13,26 +20,38 @@ export async function authenticate(request, env) {
     try {
         const { verifyJWT } = await import('./auth/login.js');
         const payload = await verifyJWT(token, env.JWT_SECRET || 'rsag-secret-key-2025');
-        return payload;
+        return {
+            ...payload,
+            role: normalizeRole(payload?.role)
+        };
     } catch (error) {
         throw new Error('认证失败');
+    }
+}
+
+export function isAdminUser(user) {
+    return normalizeRole(user?.role) === 'admin';
+}
+
+export function requireAdmin(user, message = '仅管理员可执行该操作') {
+    if (!isAdminUser(user)) {
+        throw createHttpError(message, 403);
+    }
+}
+
+export function requireOwnerOrAdmin(user, ownerUsername, message = '无权访问该资源') {
+    if (isAdminUser(user)) {
+        return;
+    }
+    if (!ownerUsername || String(ownerUsername) !== String(user?.username || '')) {
+        throw createHttpError(message, 403);
     }
 }
 
 // 数据库初始化
 export async function initDatabase(db) {
     try {
-        // 创建用户表
-        await db.prepare(`
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'editor',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `).run();
+        await ensureUsersSchema(db);
 
         // 创建论文表
         await db.prepare(`

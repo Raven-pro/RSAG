@@ -14,20 +14,23 @@
                 <h2>RSAG 管理</h2>
             </div>
             <nav class="sidebar-nav">
-                <a href="dashboard.html" class="nav-item">
+                <a href="dashboard.html" class="nav-item" data-role="admin">
                     📊 仪表板
                 </a>
-                <a href="publications.html" class="nav-item">
+                <a href="publications.html" class="nav-item" data-role="admin">
                     📚 论文管理
                 </a>
                 <a href="news.html" class="nav-item active">
                     📰 新闻管理
                 </a>
-                <a href="team.html" class="nav-item">
+                <a href="team.html" class="nav-item" data-role="admin">
                     👥 团队管理
                 </a>
-                <a href="files.html" class="nav-item">
+                <a href="files.html" class="nav-item" data-role="admin">
                     📁 文件管理
+                </a>
+                <a href="users.html" class="nav-item" data-role="admin">
+                    🔐 账号管理
                 </a>
                 <button class="nav-item logout">
                     🚪 退出登录
@@ -58,14 +61,14 @@
                     </select>
                 </div>
                 <div class="toolbar-right">
-                    <select id="bulk-status" class="form-select" style="width:auto;">
+                    <select id="bulk-status" class="form-select" style="width:auto;" data-role="admin">
                         <option value="">批量改状态</option>
                         <option value="draft">草稿</option>
                         <option value="pending_review">待审核</option>
                         <option value="published">已发布</option>
                         <option value="scheduled">定时发布</option>
                     </select>
-                    <button class="btn btn-secondary" id="bulk-apply-btn" disabled>
+                    <button class="btn btn-secondary" id="bulk-apply-btn" disabled data-role="admin">
                         应用(0)
                     </button>
                     <button class="btn btn-primary" id="add-news-btn">
@@ -81,7 +84,7 @@
                         <table class="table" id="news-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 42px;"><input type="checkbox" id="select-all-news"></th>
+                                    <th style="width: 42px;" id="select-column-header" data-role="admin"><input type="checkbox" id="select-all-news"></th>
                                     <th>标题</th>
                                     <th>作者</th>
                                     <th>发布日期</th>
@@ -258,6 +261,30 @@
         let currentStatus = '';
         const selectedNewsIds = new Set();
         const workflowStatuses = ['draft', 'pending_review', 'published', 'scheduled'];
+        const currentUser = AdminUtils.getCurrentUser();
+        const isAdmin = AdminUtils.isAdmin();
+
+        function getTableColumnSpan() {
+            return isAdmin ? 6 : 5;
+        }
+
+        function applyRoleControls() {
+            const addNewsBtn = document.getElementById('add-news-btn');
+            const authorInput = document.getElementById('author');
+            const statusSelect = document.getElementById('status');
+            const saveText = document.getElementById('save-text');
+
+            if (!isAdmin) {
+                addNewsBtn.textContent = '➕ 提交新闻';
+                saveText.textContent = '提交审核';
+                authorInput.value = currentUser?.username || '';
+                authorInput.readOnly = true;
+                statusSelect.innerHTML = '<option value="pending_review">待审核</option>';
+                statusSelect.value = 'pending_review';
+            }
+
+            updateScheduledFieldVisibility();
+        }
 
         function toDatetimeLocalValue(value) {
             if (!value) return '';
@@ -309,6 +336,12 @@
             const status = document.getElementById('bulk-status').value;
             const count = selectedNewsIds.size;
 
+            if (!isAdmin) {
+                applyBtn.disabled = true;
+                applyBtn.textContent = '应用(0)';
+                return;
+            }
+
             applyBtn.disabled = !(count > 0 && status);
             applyBtn.textContent = `应用(${count})`;
 
@@ -320,6 +353,11 @@
         }
 
         async function applyBulkNewsStatus() {
+            if (!isAdmin) {
+                AdminUtils.showNotification('仅管理员可批量审核', 'error');
+                return;
+            }
+
             const status = document.getElementById('bulk-status').value;
             const ids = Array.from(selectedNewsIds);
 
@@ -380,7 +418,7 @@
                 if (news.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">
+                            <td colspan="${getTableColumnSpan()}" style="text-align: center; padding: 2rem; color: #64748b;">
                                 ${(search || status) ? '未找到匹配的新闻' : '暂无新闻数据'}
                             </td>
                         </tr>
@@ -391,7 +429,7 @@
                 
                 tbody.innerHTML = news.map(newsItem => `
                     <tr>
-                        <td><input type="checkbox" class="news-row-select" data-id="${newsItem.id}"></td>
+                        ${isAdmin ? `<td><input type="checkbox" class="news-row-select" data-id="${newsItem.id}"></td>` : ''}
                         <td>
                             <div style="font-weight: 500;">${newsItem.title}</div>
                             ${newsItem.title_en ? `<div style="font-size: 0.75rem; color: #334155; margin-top: 0.2rem;">EN: ${newsItem.title_en}</div>` : ''}
@@ -419,9 +457,7 @@
                                 <button class="btn btn-small btn-secondary" onclick="copyFrontendNewsLink(${newsItem.id})">
                                     复制链接
                                 </button>
-                                <button class="btn btn-small btn-danger" onclick="deleteNews(${newsItem.id})">
-                                    删除
-                                </button>
+                                ${isAdmin ? `<button class="btn btn-small btn-danger" onclick="deleteNews(${newsItem.id})">删除</button>` : ''}
                             </div>
                         </td>
                     </tr>
@@ -479,14 +515,15 @@
             const form = document.getElementById('news-form');
             const title = document.getElementById('modal-title');
             
-            title.textContent = '发布新闻';
+            title.textContent = isAdmin ? '发布新闻' : '提交新闻';
             form.reset();
             document.getElementById('news-id').value = '';
             
             // 设置默认发布日期为今天
             document.getElementById('publish_date').value = new Date().toISOString().split('T')[0];
-            document.getElementById('author').value = '管理员';
-            document.getElementById('status').value = 'draft';
+            document.getElementById('author').value = isAdmin ? '管理员' : (currentUser?.username || '');
+            document.getElementById('author').readOnly = !isAdmin;
+            document.getElementById('status').value = isAdmin ? 'draft' : 'pending_review';
             updateScheduledFieldVisibility();
             
             modal.style.display = 'block';
@@ -502,7 +539,7 @@
                 const form = document.getElementById('news-form');
                 const title = document.getElementById('modal-title');
                 
-                title.textContent = '编辑新闻';
+                title.textContent = isAdmin ? '编辑新闻' : '编辑新闻（提交审核）';
                 
                 // 填充表单数据
                 Object.keys(news).forEach(key => {
@@ -519,6 +556,13 @@
                 });
 
                 updateScheduledFieldVisibility();
+
+                if (!isAdmin) {
+                    document.getElementById('author').value = currentUser?.username || news.author || '';
+                    document.getElementById('author').readOnly = true;
+                    document.getElementById('status').value = 'pending_review';
+                    updateScheduledFieldVisibility();
+                }
                 
                 // 更新图片预览
                 updateImagePreview();
@@ -573,6 +617,11 @@
         
         // 删除新闻
         async function deleteNews(id) {
+            if (!isAdmin) {
+                AdminUtils.showNotification('仅管理员可删除新闻', 'error');
+                return;
+            }
+
             const confirmed = await AdminUtils.showConfirm('确定要删除这条新闻吗？此操作不可撤销。');
             if (!confirmed) return;
             
@@ -703,9 +752,14 @@
             const saveText = document.getElementById('save-text');
             const saveLoading = document.getElementById('save-loading');
 
-            if (formData.get('status') === 'scheduled' && !formData.get('scheduled_publish_at')) {
+            if (isAdmin && formData.get('status') === 'scheduled' && !formData.get('scheduled_publish_at')) {
                 AdminUtils.showNotification('请选择定时发布时间', 'error');
                 return;
+            }
+
+            if (!isAdmin) {
+                formData.set('status', 'pending_review');
+                formData.set('author', currentUser?.username || '');
             }
             
             // 显示加载状态
@@ -726,7 +780,7 @@
                 });
                 
                 AdminUtils.showNotification(
-                    isEdit ? '新闻更新成功' : '新闻发布成功',
+                    isEdit ? (isAdmin ? '新闻更新成功' : '新闻已更新并提交审核') : (isAdmin ? '新闻发布成功' : '新闻已提交审核'),
                     'success'
                 );
 
@@ -859,6 +913,7 @@
         
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', () => {
+            applyRoleControls();
             applyInitialFiltersFromQuery();
             syncNewsSelectionControls();
             loadNews(1, currentSearch, currentStatus);

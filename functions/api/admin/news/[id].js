@@ -1,4 +1,13 @@
-import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import {
+    authenticate,
+    isAdminUser,
+    requireAdmin,
+    requireOwnerOrAdmin,
+    logActivity,
+    createResponse,
+    createErrorResponse,
+    initDatabase
+} from '../utils.js';
 import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
 
 function hydrateNewsRow(row) {
@@ -13,7 +22,7 @@ export async function onRequestGet(context) {
     const { request, env, params } = context;
 
     try {
-        await authenticate(request, env);
+        const user = await authenticate(request, env);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -28,10 +37,12 @@ export async function onRequestGet(context) {
             return createErrorResponse('新闻不存在', 404);
         }
 
+        requireOwnerOrAdmin(user, news.created_by, '只能查看自己提交的新闻');
+
         return createResponse(hydrateNewsRow(news));
     } catch (error) {
         console.error('获取新闻失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
@@ -41,6 +52,7 @@ export async function onRequestPut(context) {
 
     try {
         const user = await authenticate(request, env);
+        const isAdmin = isAdminUser(user);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -55,7 +67,9 @@ export async function onRequestPut(context) {
             scheduled_publish_at
         } = data;
 
-        if (!title || !content || !author || !publish_date || !title_en || !content_en) {
+        const authorName = isAdmin ? String(author || '').trim() : user.username;
+
+        if (!title || !content || !authorName || !publish_date || !title_en || !content_en) {
             return createErrorResponse('缺少必填字段（中英文标题与正文都需要填写）', 400);
         }
 
@@ -67,9 +81,11 @@ export async function onRequestPut(context) {
             return createErrorResponse('新闻不存在', 404);
         }
 
+        requireOwnerOrAdmin(user, existing.created_by, '只能编辑自己提交的新闻');
+
         const workflow = buildWorkflowOnUpdate({
             existing,
-            status,
+            status: isAdmin ? status : 'pending_review',
             scheduledPublishAt: scheduled_publish_at,
             username: user.username
         });
@@ -82,21 +98,28 @@ export async function onRequestPut(context) {
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `).bind(
-            title, title_en, summary || null, summary_en || null, content, content_en, author, publish_date,
+            title, title_en, summary || null, summary_en || null, content, content_en, authorName, publish_date,
             featured_image || null, category, tags || null,
             workflow.status, workflow.scheduled_publish_at, workflow.submitted_at, workflow.reviewed_by, workflow.reviewed_at,
             id
         ).run();
 
-        await logActivity(db, '更新新闻', 'news', id, user.username, `更新新闻: ${title}`);
+        await logActivity(
+            db,
+            isAdmin ? '更新新闻' : '更新并提交审核',
+            'news',
+            id,
+            user.username,
+            `${isAdmin ? '更新新闻' : '更新并提交审核'}: ${title}`
+        );
 
         return createResponse({
-            message: '新闻更新成功',
+            message: isAdmin ? '新闻更新成功' : '新闻已更新并重新提交审核',
             frontend_url: `/news/detail.html?id=${id}`
         });
     } catch (error) {
         console.error('更新新闻失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
@@ -106,6 +129,7 @@ export async function onRequestDelete(context) {
 
     try {
         const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -127,7 +151,7 @@ export async function onRequestDelete(context) {
         return createResponse({ message: '新闻删除成功' });
     } catch (error) {
         console.error('删除新闻失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

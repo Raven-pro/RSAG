@@ -1,5 +1,5 @@
 // 统计数据API
-import { authenticate, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { authenticate, requireAdmin, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ALLOWED_TYPES = ['SCI', 'EI', 'Conference', 'DomesticConference'];
@@ -195,7 +195,8 @@ export async function onRequestGet(context) {
     
     try {
         // 认证检查
-        await authenticate(request, env);
+        const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const url = new URL(request.url);
         const rangeDays = parseRangeDays(url.searchParams.get('rangeDays') || url.searchParams.get('range'));
@@ -328,7 +329,7 @@ export async function onRequestGet(context) {
         
     } catch (error) {
         console.error('获取统计数据失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

@@ -1,11 +1,12 @@
-import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 // GET /api/admin/team
 export async function onRequestGet(context) {
     const { request, env } = context;
 
     try {
-        await authenticate(request, env);
+        const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const url = new URL(request.url);
         const search = (url.searchParams.get('search') || '').toLowerCase();
@@ -27,7 +28,7 @@ export async function onRequestGet(context) {
         return createResponse({ team: result.results || [] });
     } catch (error) {
         console.error('获取团队成员失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
@@ -37,6 +38,7 @@ export async function onRequestPost(context) {
 
     try {
         const user = await authenticate(request, env);
+        requireAdmin(user);
         const data = await request.json();
         const {
             name,
@@ -89,7 +91,7 @@ export async function onRequestPost(context) {
         return createResponse({ id: memberId, message: '成员添加成功' }, 201);
     } catch (error) {
         console.error('添加团队成员失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

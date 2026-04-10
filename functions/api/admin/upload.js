@@ -1,4 +1,4 @@
-import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { authenticate, isAdminUser, logActivity, createResponse, createErrorResponse, initDatabase } from './utils.js';
 import {
     assertUploadFile,
     buildPublicFileUrl,
@@ -19,6 +19,10 @@ export async function onRequestPost(context) {
         const formData = await request.formData();
         const file = formData.get('file');
         const uploadType = String(formData.get('type') || '').toLowerCase();
+
+        if (!isAdminUser(user) && uploadType !== 'news') {
+            return createErrorResponse('成员账号仅允许上传新闻图片', 403);
+        }
 
         assertUploadFile(file, '文件');
 
@@ -88,7 +92,7 @@ export async function onRequestPost(context) {
         });
     } catch (error) {
         console.error('文件上传失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

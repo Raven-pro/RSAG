@@ -1,4 +1,4 @@
-import { authenticate, createResponse, createErrorResponse, initDatabase, logActivity } from '../utils.js';
+import { authenticate, requireAdmin, createResponse, createErrorResponse, initDatabase, logActivity } from '../utils.js';
 import { parseWorkflowStatusFilter, buildWorkflowOnUpdate } from '../workflow.js';
 
 function parseIds(value) {
@@ -22,6 +22,7 @@ export async function onRequestPost(context) {
 
     try {
         const user = await authenticate(request, env);
+        requireAdmin(user);
         const payload = await request.json();
 
         const ids = parseIds(payload?.ids);
@@ -94,7 +95,7 @@ export async function onRequestPost(context) {
         });
     } catch (error) {
         console.error('批量更新论文状态失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

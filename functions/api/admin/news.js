@@ -1,5 +1,5 @@
 // 新闻管理API
-import { authenticate, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { authenticate, isAdminUser, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 import { normalizeWorkflowStatus, parseWorkflowStatusFilter, buildWorkflowOnCreate } from './workflow.js';
 
 function hydrateNewsRow(row) {
@@ -15,7 +15,8 @@ export async function onRequestGet(context) {
     
     try {
         // 认证检查
-        await authenticate(request, env);
+        const user = await authenticate(request, env);
+        const isAdmin = isAdminUser(user);
         
         const url = new URL(request.url);
         const page = parseInt(url.searchParams.get('page') || '1');
@@ -41,6 +42,11 @@ export async function onRequestGet(context) {
         if (status) {
             whereConditions.push('status = ?');
             params.push(status);
+        }
+
+        if (!isAdmin) {
+            whereConditions.push('created_by = ?');
+            params.push(user.username);
         }
         
         if (whereConditions.length > 0) {
@@ -81,7 +87,7 @@ export async function onRequestGet(context) {
         
     } catch (error) {
         console.error('获取新闻列表失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
@@ -92,6 +98,7 @@ export async function onRequestPost(context) {
     try {
         // 认证检查
         const user = await authenticate(request, env);
+        const isAdmin = isAdminUser(user);
         
         const data = await request.json();
         const {
@@ -103,7 +110,9 @@ export async function onRequestPost(context) {
         } = data;
         
         // 验证必填字段
-        if (!title || !content || !author || !publish_date || !title_en || !content_en) {
+        const authorName = isAdmin ? (String(author || '').trim() || user.username) : user.username;
+
+        if (!title || !content || !authorName || !publish_date || !title_en || !content_en) {
             return createErrorResponse('缺少必填字段（中英文标题与正文都需要填写）', 400);
         }
         
@@ -111,7 +120,7 @@ export async function onRequestPost(context) {
         await initDatabase(db);
 
         const workflow = buildWorkflowOnCreate({
-            status,
+            status: isAdmin ? status : 'pending_review',
             scheduledPublishAt: scheduled_publish_at,
             username: user.username
         });
@@ -124,7 +133,7 @@ export async function onRequestPost(context) {
                 created_by
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-            title, title_en, summary || null, summary_en || null, content, content_en, author, publish_date,
+            title, title_en, summary || null, summary_en || null, content, content_en, authorName, publish_date,
             featured_image || null, category, tags || null,
             workflow.status, workflow.scheduled_publish_at, workflow.submitted_at, workflow.reviewed_by, workflow.reviewed_at,
             user.username
@@ -132,19 +141,19 @@ export async function onRequestPost(context) {
         
         // 记录活动日志
         await logActivity(
-            db, '发布新闻', 'news', result.meta.last_row_id,
-            user.username, `发布新闻: ${title}`
+            db, isAdmin ? '发布新闻' : '提交新闻审核', 'news', result.meta.last_row_id,
+            user.username, `${isAdmin ? '发布新闻' : '提交新闻审核'}: ${title}`
         );
         
         return createResponse({
             id: result.meta.last_row_id,
-            message: '新闻发布成功',
+            message: isAdmin ? '新闻发布成功' : '新闻已提交审核',
             frontend_url: `/news/detail.html?id=${result.meta.last_row_id}`
         }, 201);
         
     } catch (error) {
         console.error('发布新闻失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 

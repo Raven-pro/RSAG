@@ -1,4 +1,4 @@
-import { authenticate, logActivity, createResponse, createErrorResponse, initDatabase } from '../../utils.js';
+import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from '../../utils.js';
 import { assertUploadFile, buildPublicFileUrl, buildR2Key, resolveUploadsBucket } from '../../file-utils.js';
 
 // POST /api/admin/publications/[id]/upload-pdf
@@ -7,6 +7,7 @@ export async function onRequestPost(context) {
 
     try {
         const user = await authenticate(request, env);
+        requireAdmin(user);
 
         const id = Number.parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -61,7 +62,7 @@ export async function onRequestPost(context) {
         return createResponse({ url: fileUrl, message: 'PDF上传成功' });
     } catch (error) {
         console.error('上传论文 PDF 失败:', error);
-        return createErrorResponse(error.message);
+        return createErrorResponse(error.message, error.status || 500);
     }
 }
 
