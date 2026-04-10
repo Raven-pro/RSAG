@@ -7,6 +7,9 @@
     "cf:worker:build": "mkdir -p .cf-build && npx wrangler pages functions build functions --outdir .cf-build --project-directory .",
     "cf:dev": "npx wrangler pages dev public",
     "cf:check": "node scripts/predeploy-check.js",
+    "migrate:legacy": "node scripts/migrate-legacy-to-d1.js",
+    "migrate:legacy:local": "node scripts/migrate-legacy-to-d1.js --local",
+    "migrate:legacy:remote": "node scripts/migrate-legacy-to-d1.js --remote",
     "deploy": "node scripts/deploy-pages.js",
     "deploy:manual": "npm run cf:check && npm run deploy"
   },

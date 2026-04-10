@@ -5,6 +5,7 @@ node_modules/
 .cf-build/
 .tmp_worker.js
 _worker.bundle
+scripts/generated/
 
 # Wrangler local state
 .wrangler/
