@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
         newsList.innerHTML = '';
 
         if (items.length > 0) {
-            const recentNews = items.slice(0, 5);
+            const recentNews = items.slice(0, 4);
 
             recentNews.forEach(item => {
                 const li = document.createElement('li');
