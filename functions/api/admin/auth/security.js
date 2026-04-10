@@ -1,5 +1,5 @@
 const PASSWORD_SCHEME = 'pbkdf2_sha256';
-const PASSWORD_ITERATIONS = 120000;
+const PASSWORD_ITERATIONS = 100000;
 const PASSWORD_KEY_BYTES = 32;
 
 const VALID_ROLES = new Set(['admin', 'member']);
