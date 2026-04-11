@@ -3,16 +3,41 @@ import { authenticate, isAdminUser, logActivity, buildPaginationQuery, createRes
 import { normalizeWorkflowStatus, parseWorkflowStatusFilter, buildWorkflowOnCreate } from './workflow.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
-const TYPE_ALIASES = {
-    '国际会议': 'Conference',
-    '国内会议': 'DomesticConference'
-};
+const TYPE_ALIASES = new Map([
+    ['sci', 'SCI'],
+    ['sci期刊', 'SCI'],
+    ['sci收录', 'SCI'],
+    ['ei', 'EI'],
+    ['ei期刊', 'EI'],
+    ['ei收录', 'EI'],
+    ['conference', 'Conference'],
+    ['internationalconference', 'Conference'],
+    ['国际会议', 'Conference'],
+    ['domesticconference', 'DomesticConference'],
+    ['国内会议', 'DomesticConference']
+]);
 
 function normalizeTypeValue(type) {
     const value = String(type || '').trim();
     if (!value) return '';
-    const mapped = TYPE_ALIASES[value] || value;
+    if (ALLOWED_TYPES.has(value)) return value;
+    const aliasKey = value.toLowerCase().replace(/\s+/g, '');
+    const mapped = TYPE_ALIASES.get(aliasKey) || value;
     return ALLOWED_TYPES.has(mapped) ? mapped : '';
+}
+
+function getTypeVariants(type) {
+    const normalized = normalizeTypeValue(type);
+    if (!normalized) return [];
+
+    const variantMap = {
+        SCI: ['SCI', 'sci', 'SCI期刊', 'sci期刊', 'SCI收录', 'sci收录'],
+        EI: ['EI', 'ei', 'EI期刊', 'ei期刊', 'EI收录', 'ei收录'],
+        Conference: ['Conference', 'conference', '国际会议'],
+        DomesticConference: ['DomesticConference', 'domesticconference', '国内会议']
+    };
+
+    return variantMap[normalized] || [normalized];
 }
 
 function normalizeTypesInput(types, fallbackType) {
@@ -111,8 +136,20 @@ export async function onRequestGet(context) {
         }
 
         if (type) {
-            whereConditions.push('(type = ? OR types LIKE ?)');
-            params.push(type, `%"${type}"%`);
+            const variants = getTypeVariants(type);
+            const clauses = [];
+
+            for (const value of variants) {
+                clauses.push('type = ?');
+                params.push(value);
+            }
+
+            for (const value of variants) {
+                clauses.push('types LIKE ?');
+                params.push(`%"${value}"%`);
+            }
+
+            whereConditions.push(`(${clauses.join(' OR ')})`);
         }
 
         if (status) {

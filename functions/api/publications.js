@@ -1,10 +1,27 @@
 import { createResponse, createErrorResponse, initDatabase } from './admin/utils.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
+const TYPE_ALIASES = new Map([
+    ['sci', 'SCI'],
+    ['sci期刊', 'SCI'],
+    ['sci收录', 'SCI'],
+    ['ei', 'EI'],
+    ['ei期刊', 'EI'],
+    ['ei收录', 'EI'],
+    ['conference', 'Conference'],
+    ['internationalconference', 'Conference'],
+    ['国际会议', 'Conference'],
+    ['domesticconference', 'DomesticConference'],
+    ['国内会议', 'DomesticConference']
+]);
 
 function normalizeTypeValue(type) {
     const value = String(type || '').trim();
-    return ALLOWED_TYPES.has(value) ? value : '';
+    if (!value) return '';
+    if (ALLOWED_TYPES.has(value)) return value;
+    const aliasKey = value.toLowerCase().replace(/\s+/g, '');
+    const mapped = TYPE_ALIASES.get(aliasKey) || '';
+    return ALLOWED_TYPES.has(mapped) ? mapped : '';
 }
 
 function parseTypes(typesValue, fallbackType) {

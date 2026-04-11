@@ -11,15 +11,26 @@ import {
 import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
-const TYPE_ALIASES = {
-    '国际会议': 'Conference',
-    '国内会议': 'DomesticConference'
-};
+const TYPE_ALIASES = new Map([
+    ['sci', 'SCI'],
+    ['sci期刊', 'SCI'],
+    ['sci收录', 'SCI'],
+    ['ei', 'EI'],
+    ['ei期刊', 'EI'],
+    ['ei收录', 'EI'],
+    ['conference', 'Conference'],
+    ['internationalconference', 'Conference'],
+    ['国际会议', 'Conference'],
+    ['domesticconference', 'DomesticConference'],
+    ['国内会议', 'DomesticConference']
+]);
 
 function normalizeTypeValue(type) {
     const value = String(type || '').trim();
     if (!value) return '';
-    const mapped = TYPE_ALIASES[value] || value;
+    if (ALLOWED_TYPES.has(value)) return value;
+    const aliasKey = value.toLowerCase().replace(/\s+/g, '');
+    const mapped = TYPE_ALIASES.get(aliasKey) || value;
     return ALLOWED_TYPES.has(mapped) ? mapped : '';
 }
 

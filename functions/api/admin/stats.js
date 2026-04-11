@@ -3,10 +3,19 @@ import { authenticate, requireAdmin, createResponse, createErrorResponse, initDa
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ALLOWED_TYPES = ['SCI', 'EI', 'Conference', 'DomesticConference'];
-const TYPE_ALIASES = {
-    '国际会议': 'Conference',
-    '国内会议': 'DomesticConference'
-};
+const TYPE_ALIASES = new Map([
+    ['sci', 'SCI'],
+    ['sci期刊', 'SCI'],
+    ['sci收录', 'SCI'],
+    ['ei', 'EI'],
+    ['ei期刊', 'EI'],
+    ['ei收录', 'EI'],
+    ['conference', 'Conference'],
+    ['internationalconference', 'Conference'],
+    ['国际会议', 'Conference'],
+    ['domesticconference', 'DomesticConference'],
+    ['国内会议', 'DomesticConference']
+]);
 const WORKFLOW_STATUSES = ['draft', 'pending_review', 'scheduled', 'published'];
 const WORKFLOW_ALIASES = {
     submitted: 'pending_review',
@@ -45,7 +54,9 @@ function toCountSeries(rows, buckets) {
 function normalizeTypeValue(value) {
     const text = String(value || '').trim();
     if (!text) return '';
-    const mapped = TYPE_ALIASES[text] || text;
+    if (ALLOWED_TYPES.includes(text)) return text;
+    const aliasKey = text.toLowerCase().replace(/\s+/g, '');
+    const mapped = TYPE_ALIASES.get(aliasKey) || text;
     return ALLOWED_TYPES.includes(mapped) ? mapped : '';
 }
 
