@@ -231,6 +231,7 @@
         let currentSearch = '';
         let currentType = '';
         let currentStatus = '';
+        const canonicalPublicationTypes = ['SCI', 'EI', 'Conference', 'DomesticConference'];
         const selectedPublicationIds = new Set();
         const workflowStatuses = ['draft', 'pending_review', 'published', 'scheduled'];
         const currentUser = AdminUtils.getCurrentUser();
@@ -261,6 +262,13 @@
             if (Number.isNaN(dt.getTime())) return '';
             const pad = (n) => String(n).padStart(2, '0');
             return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+        }
+
+        function restoreTypeCheckboxValues(form) {
+            const checkboxes = Array.from(form.querySelectorAll('input[name="types"]'));
+            checkboxes.forEach((checkbox, index) => {
+                checkbox.value = canonicalPublicationTypes[index] || '';
+            });
         }
 
         function updateScheduledFieldVisibility() {
@@ -526,6 +534,7 @@
             
             title.textContent = isAdmin ? '添加论文' : '提交论文';
             form.reset();
+            restoreTypeCheckboxValues(form);
             document.getElementById('publication-id').value = '';
             
             // 设置默认年份为当前年份
@@ -547,9 +556,11 @@
                 const title = document.getElementById('modal-title');
                 
                 title.textContent = isAdmin ? '编辑论文' : '编辑论文（提交审核）';
+                restoreTypeCheckboxValues(form);
                 
                 // 填充表单数据
                 Object.keys(publication).forEach(key => {
+                    if (key === 'types') return;
                     const element = form.querySelector(`[name="${key}"]`);
                     if (element) {
                         if (key === 'scheduled_publish_at' && publication[key]) {
@@ -662,9 +673,16 @@
             try {
                 const data = Object.fromEntries(formData);
                 delete data.id; // 移除ID字段
+                delete data.types;
                 // 收集多选 types
                 const typeValues = [];
-                form.querySelectorAll('input[name="types"]:checked').forEach(cb => typeValues.push(cb.value));
+                restoreTypeCheckboxValues(form);
+                form.querySelectorAll('input[name="types"]:checked').forEach(cb => {
+                    const value = String(cb.value || '').trim();
+                    if (canonicalPublicationTypes.includes(value)) {
+                        typeValues.push(value);
+                    }
+                });
                 if (typeValues.length) data.types = typeValues;
                 
                 const url = isEdit ? `/publications/${id}` : '/publications';
