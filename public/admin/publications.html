@@ -692,14 +692,18 @@
                     method,
                     body: data
                 });
-                
-                AdminUtils.showNotification(
-                    isEdit ? (isAdmin ? '论文更新成功' : '论文已更新并提交审核') : (isAdmin ? '论文添加成功' : '论文已提交审核'),
-                    'success'
-                );
+
+                const successMessage = isEdit
+                    ? (isAdmin ? '论文更新成功' : '论文已更新并提交审核')
+                    : (isAdmin ? '论文添加成功' : '论文已提交审核');
 
                 const frontendUrl = result?.frontend_url || '/publications-api.html';
                 const absoluteUrl = `${window.location.origin}${frontendUrl}`;
+
+                hideModal();
+                await loadPublications(currentPage, currentSearch, currentType, currentStatus);
+                AdminUtils.showNotification(successMessage, 'success');
+
                 if (!isEdit) {
                     try {
                         await navigator.clipboard.writeText(absoluteUrl);
@@ -707,14 +711,10 @@
                     } catch (_) {
                         // 忽略剪贴板失败，保留后续打开流程
                     }
+                    if (confirm('是否立即在新标签页打开前台论文页检查展示效果？')) {
+                        window.open(frontendUrl, '_blank', 'noopener,noreferrer');
+                    }
                 }
-
-                if (confirm('是否立即在新标签页打开前台论文页检查展示效果？')) {
-                    window.open(frontendUrl, '_blank', 'noopener,noreferrer');
-                }
-                
-                hideModal();
-                loadPublications(currentPage, currentSearch, currentType, currentStatus);
                 
             } catch (error) {
                 console.error('保存论文失败:', error);

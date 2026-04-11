@@ -779,13 +779,17 @@
                     method,
                     body: data
                 });
-                
-                AdminUtils.showNotification(
-                    isEdit ? (isAdmin ? '新闻更新成功' : '新闻已更新并提交审核') : (isAdmin ? '新闻发布成功' : '新闻已提交审核'),
-                    'success'
-                );
+
+                const successMessage = isEdit
+                    ? (isAdmin ? '新闻更新成功' : '新闻已更新并提交审核')
+                    : (isAdmin ? '新闻发布成功' : '新闻已提交审核');
 
                 const frontendUrl = result?.frontend_url || (result?.id ? `/news/detail.html?id=${result.id}` : '');
+
+                hideModal();
+                await loadNews(currentPage, currentSearch, currentStatus);
+                AdminUtils.showNotification(successMessage, 'success');
+
                 if (frontendUrl) {
                     const absoluteUrl = `${window.location.origin}${frontendUrl}`;
                     if (!isEdit) {
@@ -795,15 +799,11 @@
                         } catch (_) {
                             // 忽略剪贴板失败，仍允许手动打开
                         }
-                    }
-
-                    if (confirm('是否立即在新标签页打开前台页面进行检查？')) {
-                        window.open(frontendUrl, '_blank', 'noopener,noreferrer');
+                        if (confirm('是否立即在新标签页打开前台页面进行检查？')) {
+                            window.open(frontendUrl, '_blank', 'noopener,noreferrer');
+                        }
                     }
                 }
-                
-                hideModal();
-                loadNews(currentPage, currentSearch, currentStatus);
                 
             } catch (error) {
                 console.error('保存新闻失败:', error);
