@@ -244,7 +244,7 @@ export async function onRequestPost(context) {
                 abstract, keywords, type, types, status,
                 scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
                 created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             title, authors, journal, year, volume || null, doi || null,
             url || null, abstract || null, keywords || null,
