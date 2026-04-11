@@ -142,12 +142,61 @@ export async function onRequestPut(context) {
     }
 }
 
+// DELETE /api/admin/users/[id]
+export async function onRequestDelete(context) {
+    const { request, env, params } = context;
+
+    try {
+        const admin = await authenticate(request, env);
+        requireAdmin(admin);
+
+        const id = parseUserId(params.id);
+        if (!id) {
+            return createErrorResponse('无效的用户 ID', 400);
+        }
+
+        const db = env.DB;
+        await initDatabase(db);
+
+        const target = await fetchUserById(db, id);
+        if (!target) {
+            return createErrorResponse('用户不存在', 404);
+        }
+
+        const targetRole = normalizeRole(target.role);
+        if (targetRole === 'admin') {
+            return createErrorResponse('超级管理员账号不允许删除', 400);
+        }
+
+        const currentAdminId = Number.parseInt(admin?.userId, 10);
+        if (Number.isInteger(currentAdminId) && currentAdminId === id) {
+            return createErrorResponse('不能删除当前登录账号', 400);
+        }
+
+        await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+
+        await logActivity(
+            db,
+            '删除成员账号',
+            'users',
+            id,
+            admin.username,
+            `删除成员账号: ${target.username}`
+        );
+
+        return createResponse({ message: '账号删除成功' });
+    } catch (error) {
+        console.error('删除成员账号失败:', error);
+        return createErrorResponse(error.message, error.status || 500);
+    }
+}
+
 export async function onRequestOptions() {
     return new Response(null, {
         status: 200,
         headers: {
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+            'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization'
         }
     });

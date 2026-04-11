@@ -53,6 +53,8 @@ class AdminUtils {
         return [
             '/admin/news',
             '/admin/news.html',
+            '/admin/publications',
+            '/admin/publications.html',
             '/admin/login',
             '/admin/login.html'
         ].includes(pathname);

@@ -1,5 +1,5 @@
 // 论文管理API
-import { authenticate, requireAdmin, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { authenticate, isAdminUser, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 import { normalizeWorkflowStatus, parseWorkflowStatusFilter, buildWorkflowOnCreate } from './workflow.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
@@ -86,7 +86,7 @@ export async function onRequestGet(context) {
     try {
         // 认证检查
         const user = await authenticate(request, env);
-        requireAdmin(user);
+        const isAdmin = isAdminUser(user);
         
         const url = new URL(request.url);
         const page = parseInt(url.searchParams.get('page') || '1');
@@ -118,6 +118,11 @@ export async function onRequestGet(context) {
         if (status) {
             whereConditions.push('status = ?');
             params.push(status);
+        }
+
+        if (!isAdmin) {
+            whereConditions.push('created_by = ?');
+            params.push(user.username);
         }
 
         if (whereConditions.length > 0) {
@@ -170,7 +175,7 @@ export async function onRequestPost(context) {
     try {
         // 认证检查
         const user = await authenticate(request, env);
-        requireAdmin(user);
+        const isAdmin = isAdminUser(user);
         
         const data = await request.json();
         const {
@@ -191,7 +196,7 @@ export async function onRequestPost(context) {
         const normalizedTypes = normalizeTypesInput(types, type);
         const normalizedType = normalizePrimaryType(normalizedTypes, type);
         const workflow = buildWorkflowOnCreate({
-            status,
+            status: isAdmin ? status : 'pending_review',
             scheduledPublishAt: scheduled_publish_at,
             username: user.username
         });
@@ -213,13 +218,17 @@ export async function onRequestPost(context) {
         
         // 记录活动日志
         await logActivity(
-            db, '添加论文', 'publications', result.meta.last_row_id,
-            user.username, `添加论文: ${title}`
+            db,
+            isAdmin ? '添加论文' : '提交论文审核',
+            'publications',
+            result.meta.last_row_id,
+            user.username,
+            `${isAdmin ? '添加论文' : '提交论文审核'}: ${title}`
         );
         
         return createResponse({
             id: result.meta.last_row_id,
-            message: '论文添加成功',
+            message: isAdmin ? '论文添加成功' : '论文已提交审核',
             frontend_url: '/publications-api.html'
         }, 201);
         

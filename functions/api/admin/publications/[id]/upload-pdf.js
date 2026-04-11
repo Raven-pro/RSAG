@@ -1,4 +1,12 @@
-import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from '../../utils.js';
+import {
+    authenticate,
+    isAdminUser,
+    requireOwnerOrAdmin,
+    logActivity,
+    createResponse,
+    createErrorResponse,
+    initDatabase
+} from '../../utils.js';
 import { assertUploadFile, buildPublicFileUrl, buildR2Key, resolveUploadsBucket } from '../../file-utils.js';
 
 // POST /api/admin/publications/[id]/upload-pdf
@@ -7,7 +15,7 @@ export async function onRequestPost(context) {
 
     try {
         const user = await authenticate(request, env);
-        requireAdmin(user);
+        const isAdmin = isAdminUser(user);
 
         const id = Number.parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -30,9 +38,13 @@ export async function onRequestPost(context) {
         const db = env.DB;
         await initDatabase(db);
 
-        const existing = await db.prepare('SELECT id FROM publications WHERE id = ?').bind(id).first();
+        const existing = await db.prepare('SELECT id, created_by FROM publications WHERE id = ?').bind(id).first();
         if (!existing) {
             return createErrorResponse('论文不存在', 404);
+        }
+
+        if (!isAdmin) {
+            requireOwnerOrAdmin(user, existing.created_by, '只能上传自己论文的PDF');
         }
 
         const key = buildR2Key('pdf', file.name);
@@ -44,11 +56,24 @@ export async function onRequestPost(context) {
 
         const fileUrl = buildPublicFileUrl(key, env);
 
-        await db.prepare(`
-            UPDATE publications
-            SET pdf_url = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).bind(fileUrl, id).run();
+        if (isAdmin) {
+            await db.prepare(`
+                UPDATE publications
+                SET pdf_url = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).bind(fileUrl, id).run();
+        } else {
+            await db.prepare(`
+                UPDATE publications
+                SET pdf_url = ?,
+                    status = 'pending_review',
+                    submitted_at = CURRENT_TIMESTAMP,
+                    reviewed_by = NULL,
+                    reviewed_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).bind(fileUrl, id).run();
+        }
 
         await logActivity(
             db,

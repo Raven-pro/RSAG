@@ -40,7 +40,7 @@
         <main class="main-content">
             <div class="content-header">
                 <h1>账号管理</h1>
-                <p>管理员可创建成员账号，并对成员账号进行启停与密码重置</p>
+                <p>管理员可创建成员账号，并对成员账号进行启停、密码重置和删除</p>
             </div>
 
             <div class="toolbar">
@@ -175,6 +175,7 @@
                                     <button class="btn btn-small ${Number.parseInt(user.is_active, 10) === 1 ? 'btn-danger' : 'btn-success'}" onclick="toggleUserStatus(${user.id}, '${user.username}', ${Number.parseInt(user.is_active, 10) === 1 ? 1 : 0})">
                                         ${Number.parseInt(user.is_active, 10) === 1 ? '停用' : '启用'}
                                     </button>
+                                    <button class="btn btn-small btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">删除</button>
                                 </div>
                             `}
                         </td>
@@ -283,6 +284,22 @@
             }
         }
 
+        async function deleteUser(id, username) {
+            const confirmed = await AdminUtils.showConfirm(`确定要删除账号 ${username} 吗？该操作不可恢复。`, '删除账号');
+            if (!confirmed) return;
+
+            try {
+                await AdminUtils.apiRequest(`/users/${id}`, {
+                    method: 'DELETE'
+                });
+                AdminUtils.showNotification('账号删除成功', 'success');
+                await loadUsers();
+            } catch (error) {
+                console.error('删除账号失败:', error);
+                AdminUtils.showNotification(error.message || '删除账号失败', 'error');
+            }
+        }
+
         document.getElementById('add-user-btn').addEventListener('click', showUserModal);
         document.getElementById('cancel-user-btn').addEventListener('click', hideUserModal);
         document.getElementById('user-form').addEventListener('submit', createUser);
@@ -304,6 +321,7 @@
 
         window.resetUserPassword = resetUserPassword;
         window.toggleUserStatus = toggleUserStatus;
+        window.deleteUser = deleteUser;
     </script>
 </body>
 </html>

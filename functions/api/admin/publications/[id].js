@@ -1,4 +1,13 @@
-import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
+import {
+    authenticate,
+    isAdminUser,
+    requireAdmin,
+    requireOwnerOrAdmin,
+    logActivity,
+    createResponse,
+    createErrorResponse,
+    initDatabase
+} from '../utils.js';
 import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
@@ -84,7 +93,7 @@ export async function onRequestGet(context) {
 
     try {
         const user = await authenticate(request, env);
-        requireAdmin(user);
+        const isAdmin = isAdminUser(user);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -97,6 +106,10 @@ export async function onRequestGet(context) {
         const publication = await db.prepare('SELECT * FROM publications WHERE id = ?').bind(id).first();
         if (!publication) {
             return createErrorResponse('论文不存在', 404);
+        }
+
+        if (!isAdmin) {
+            requireOwnerOrAdmin(user, publication.created_by, '只能查看自己提交的论文');
         }
 
         return createResponse(hydratePublication(publication));
@@ -112,7 +125,7 @@ export async function onRequestPut(context) {
 
     try {
         const user = await authenticate(request, env);
-        requireAdmin(user);
+        const isAdmin = isAdminUser(user);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -137,9 +150,13 @@ export async function onRequestPut(context) {
             return createErrorResponse('论文不存在', 404);
         }
 
+        if (!isAdmin) {
+            requireOwnerOrAdmin(user, existing.created_by, '只能编辑自己提交的论文');
+        }
+
         const workflow = buildWorkflowOnUpdate({
             existing,
-            status,
+            status: isAdmin ? status : 'pending_review',
             scheduledPublishAt: scheduled_publish_at,
             username: user.username
         });
@@ -159,10 +176,17 @@ export async function onRequestPut(context) {
             id
         ).run();
 
-        await logActivity(db, '更新论文', 'publications', id, user.username, `更新论文: ${title}`);
+        await logActivity(
+            db,
+            isAdmin ? '更新论文' : '更新并提交论文审核',
+            'publications',
+            id,
+            user.username,
+            `${isAdmin ? '更新论文' : '更新并提交论文审核'}: ${title}`
+        );
 
         return createResponse({
-            message: '论文更新成功',
+            message: isAdmin ? '论文更新成功' : '论文已更新并提交审核',
             frontend_url: '/publications-api.html'
         });
     } catch (error) {

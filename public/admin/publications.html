@@ -17,7 +17,7 @@
                 <a href="dashboard.html" class="nav-item" data-role="admin">
                     📊 仪表板
                 </a>
-                <a href="publications.html" class="nav-item active" data-role="admin">
+                <a href="publications.html" class="nav-item active">
                     📚 论文管理
                 </a>
                 <a href="news.html" class="nav-item">
@@ -43,6 +43,9 @@
             <div class="content-header">
                 <h1>论文管理</h1>
                 <p>管理课题组发表的论文和研究成果</p>
+                <div style="margin-top: 0.6rem; color: #64748b; font-size: 0.9rem;">
+                    当前策略：成员可提交/编辑本人论文，系统会自动进入“待审核”；管理员负责批量审核与发布。
+                </div>
             </div>
 
             <!-- 工具栏 -->
@@ -68,14 +71,14 @@
                     </select>
                 </div>
                 <div class="toolbar-right">
-                    <select id="bulk-status" class="form-select" style="width:auto;">
+                    <select id="bulk-status" class="form-select" style="width:auto;" data-role="admin">
                         <option value="">批量改状态</option>
                         <option value="draft">草稿</option>
                         <option value="pending_review">待审核</option>
                         <option value="published">已发布</option>
                         <option value="scheduled">定时发布</option>
                     </select>
-                    <button class="btn btn-secondary" id="bulk-apply-btn" disabled>
+                    <button class="btn btn-secondary" id="bulk-apply-btn" disabled data-role="admin">
                         应用(0)
                     </button>
                     <a class="btn btn-secondary" href="/publications-api.html" target="_blank" rel="noopener noreferrer">
@@ -94,7 +97,7 @@
                         <table class="table" id="publications-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 42px;"><input type="checkbox" id="select-all-publications"></th>
+                                    <th style="width: 42px;" id="select-column-header" data-role="admin"><input type="checkbox" id="select-all-publications"></th>
                                     <th>标题</th>
                                     <th>作者</th>
                                     <th>期刊</th>
@@ -230,6 +233,27 @@
         let currentStatus = '';
         const selectedPublicationIds = new Set();
         const workflowStatuses = ['draft', 'pending_review', 'published', 'scheduled'];
+        const currentUser = AdminUtils.getCurrentUser();
+        const isAdmin = AdminUtils.isAdmin();
+
+        function getTableColumnSpan() {
+            return isAdmin ? 7 : 6;
+        }
+
+        function applyRoleControls() {
+            const addBtn = document.getElementById('add-publication-btn');
+            const saveText = document.getElementById('save-text');
+            const statusSelect = document.getElementById('status');
+
+            if (!isAdmin) {
+                addBtn.textContent = '➕ 提交论文';
+                saveText.textContent = '提交审核';
+                statusSelect.innerHTML = '<option value="pending_review">待审核</option>';
+                statusSelect.value = 'pending_review';
+            }
+
+            updateScheduledFieldVisibility();
+        }
 
         function toDatetimeLocalValue(value) {
             if (!value) return '';
@@ -282,6 +306,12 @@
             const status = document.getElementById('bulk-status').value;
             const count = selectedPublicationIds.size;
 
+            if (!isAdmin) {
+                applyBtn.disabled = true;
+                applyBtn.textContent = '应用(0)';
+                return;
+            }
+
             applyBtn.disabled = !(count > 0 && status);
             applyBtn.textContent = `应用(${count})`;
 
@@ -293,6 +323,11 @@
         }
 
         async function applyBulkPublicationStatus() {
+            if (!isAdmin) {
+                AdminUtils.showNotification('仅管理员可批量审核论文', 'error');
+                return;
+            }
+
             const status = document.getElementById('bulk-status').value;
             const ids = Array.from(selectedPublicationIds);
 
@@ -395,7 +430,7 @@
                 if (publications.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 2rem; color: #64748b;">
+                            <td colspan="${getTableColumnSpan()}" style="text-align: center; padding: 2rem; color: #64748b;">
                                 ${(search || type || status) ? '未找到匹配的论文' : '暂无论文数据'}
                             </td>
                         </tr>
@@ -406,7 +441,7 @@
                 
                 tbody.innerHTML = publications.map(pub => `
                     <tr>
-                        <td><input type="checkbox" class="publication-row-select" data-id="${pub.id}"></td>
+                        ${isAdmin ? `<td><input type="checkbox" class="publication-row-select" data-id="${pub.id}"></td>` : ''}
                         <td>
                             <div style="font-weight: 500;">${pub.title}</div>
                             ${pub.doi ? `<div style="font-size: 0.75rem; color: #64748b;">DOI: ${pub.doi}</div>` : ''}
@@ -425,9 +460,7 @@
                                 <button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">
                                     编辑
                                 </button>
-                                <button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">
-                                    删除
-                                </button>
+                                ${isAdmin ? `<button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">删除</button>` : ''}
                                 <button class="btn btn-small btn-secondary" onclick="copyPublicationsFrontendLink()">
                                     复制前台链接
                                 </button>
@@ -489,13 +522,13 @@
             const form = document.getElementById('publication-form');
             const title = document.getElementById('modal-title');
             
-            title.textContent = '添加论文';
+            title.textContent = isAdmin ? '添加论文' : '提交论文';
             form.reset();
             document.getElementById('publication-id').value = '';
             
             // 设置默认年份为当前年份
             document.getElementById('year').value = new Date().getFullYear();
-            document.getElementById('status').value = 'draft';
+            document.getElementById('status').value = isAdmin ? 'draft' : 'pending_review';
             updateScheduledFieldVisibility();
             
             modal.style.display = 'block';
@@ -511,7 +544,7 @@
                 const form = document.getElementById('publication-form');
                 const title = document.getElementById('modal-title');
                 
-                title.textContent = '编辑论文';
+                title.textContent = isAdmin ? '编辑论文' : '编辑论文（提交审核）';
                 
                 // 填充表单数据
                 Object.keys(publication).forEach(key => {
@@ -529,6 +562,10 @@
                 form.querySelectorAll('input[name="types"]').forEach(cb => {
                     cb.checked = types.includes(cb.value);
                 });
+
+                if (!isAdmin) {
+                    document.getElementById('status').value = 'pending_review';
+                }
                 updateScheduledFieldVisibility();
                 
                 modal.style.display = 'block';
@@ -542,6 +579,11 @@
         
         // 删除论文
         async function deletePublication(id) {
+            if (!isAdmin) {
+                AdminUtils.showNotification('仅管理员可删除论文', 'error');
+                return;
+            }
+
             const confirmed = await AdminUtils.showConfirm('确定要删除这篇论文吗？此操作不可撤销。');
             if (!confirmed) return;
             
@@ -601,9 +643,13 @@
             const saveText = document.getElementById('save-text');
             const saveLoading = document.getElementById('save-loading');
 
-            if (formData.get('status') === 'scheduled' && !formData.get('scheduled_publish_at')) {
+            if (isAdmin && formData.get('status') === 'scheduled' && !formData.get('scheduled_publish_at')) {
                 AdminUtils.showNotification('请选择定时发布时间', 'error');
                 return;
+            }
+
+            if (!isAdmin) {
+                formData.set('status', 'pending_review');
             }
             
             // 显示加载状态
@@ -628,7 +674,7 @@
                 });
                 
                 AdminUtils.showNotification(
-                    isEdit ? '论文更新成功' : '论文添加成功',
+                    isEdit ? (isAdmin ? '论文更新成功' : '论文已更新并提交审核') : (isAdmin ? '论文添加成功' : '论文已提交审核'),
                     'success'
                 );
 
@@ -766,6 +812,7 @@
         
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', () => {
+            applyRoleControls();
             applyInitialFiltersFromQuery();
             syncPublicationSelectionControls();
             loadPublications(1, currentSearch, currentType, currentStatus);
