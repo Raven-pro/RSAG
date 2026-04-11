@@ -94,16 +94,16 @@
             <div class="card">
                 <div class="card-body">
                     <div class="table-container">
-                        <table class="table" id="publications-table">
+                        <table class="table" id="publications-table" style="table-layout: fixed; width: 100%;">
                             <thead>
                                 <tr>
                                     <th style="width: 42px;" id="select-column-header" data-role="admin"><input type="checkbox" id="select-all-publications"></th>
-                                    <th>标题</th>
-                                    <th>作者</th>
-                                    <th>期刊</th>
-                                    <th>年份</th>
-                                    <th>状态</th>
-                                    <th>操作</th>
+                                    <th style="width: 36%;">标题</th>
+                                    <th style="width: 26%;">作者</th>
+                                    <th style="width: 15%;">期刊</th>
+                                    <th style="width: 70px;">年份</th>
+                                    <th style="width: 110px;">状态</th>
+                                    <th style="width: 170px;">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="publications-tbody">
@@ -443,7 +443,7 @@
                     <tr>
                         ${isAdmin ? `<td><input type="checkbox" class="publication-row-select" data-id="${pub.id}"></td>` : ''}
                         <td>
-                            <div style="font-weight: 500;">${pub.title}</div>
+                            <div style="font-weight: 500; line-height: 1.4;">${pub.title}</div>
                             ${pub.doi ? `<div style="font-size: 0.75rem; color: #64748b;">DOI: ${pub.doi}</div>` : ''}
                             ${renderTypeBadges(pub)}
                         </td>
@@ -451,20 +451,22 @@
                         <td>${pub.journal}</td>
                         <td>${pub.year}</td>
                         <td>
-                            <span class="status-badge ${getStatusClass(pub.status)}">
+                            <span class="status-badge ${getStatusClass(pub.status)}" style="white-space: nowrap;">
                                 ${getStatusText(pub.status)}
                             </span>
                         </td>
                         <td>
-                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                <button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">
-                                    编辑
-                                </button>
-                                ${isAdmin ? `<button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">删除</button>` : ''}
-                                <button class="btn btn-small btn-secondary" onclick="copyPublicationsFrontendLink()">
+                            <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                                <div style="display:flex; gap:0.45rem;">
+                                    <button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">
+                                        编辑
+                                    </button>
+                                    ${isAdmin ? `<button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">删除</button>` : ''}
+                                </div>
+                                <button class="btn btn-small btn-secondary" style="width: 100%;" onclick="copyPublicationsFrontendLink()">
                                     复制前台链接
                                 </button>
-                                ${pub.pdf_url ? `<a class="btn btn-small btn-secondary" href="${pub.pdf_url}" target="_blank">下载PDF</a>` : ''}
+                                ${pub.pdf_url ? `<a class="btn btn-small btn-secondary" style="width:100%; text-align:center;" href="${pub.pdf_url}" target="_blank">下载PDF</a>` : ''}
                             </div>
                         </td>
                     </tr>
