@@ -46,10 +46,10 @@
                     全部
                 </button>
                 <button id="filter-sci" class="filter-button px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                    SCI期刊
+                    SCI收录
                 </button>
                 <button id="filter-ei" class="filter-button px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                    EI期刊
+                    EI收录
                 </button>
                 <button id="filter-conference" class="filter-button px-4 py-2 rounded-md text-sm font-medium transition-colors">
                     会议论文
@@ -65,11 +65,11 @@
             </div>
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
                 <div class="text-2xl font-bold text-blue-600" id="sci-count">-</div>
-                <div class="text-sm text-gray-600">SCI期刊</div>
+                <div class="text-sm text-gray-600">SCI收录</div>
             </div>
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
                 <div class="text-2xl font-bold text-green-600" id="ei-count">-</div>
-                <div class="text-sm text-gray-600">EI期刊</div>
+                <div class="text-sm text-gray-600">EI收录</div>
             </div>
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
                 <div class="text-2xl font-bold text-orange-600" id="conference-count">-</div>
@@ -153,6 +153,15 @@
             document.getElementById('conference-count').textContent = conferenceCount;
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // 显示论文
         function displayPublications() {
             const container = document.getElementById('publications-container');
@@ -212,6 +221,16 @@
                         const { colorClass, label } = getTypeBadge(t);
                         return `<span class="inline-block px-3 py-1 text-xs font-medium rounded-full ${colorClass}">${label}</span>`;
                     }).join(' ');
+
+                    const detailId = `pub-detail-${pub.id || `${year}-${index}`}`;
+                    const hasAbstract = Boolean(String(pub.abstract || '').trim());
+                    const hasKeywords = Boolean(String(pub.keywords || '').trim());
+                    const detailHtml = `
+                        <div id="${detailId}" class="hidden mt-3 p-3 rounded-md bg-gray-50 border border-gray-200 text-sm text-gray-700">
+                            ${hasAbstract ? `<div class="mb-2"><strong>摘要:</strong><div class="mt-1">${escapeHtml(pub.abstract).replace(/\n/g, '<br>')}</div></div>` : '<div class="mb-2 text-gray-500">摘要: 未填写</div>'}
+                            ${hasKeywords ? `<div><strong>关键词:</strong> ${escapeHtml(pub.keywords)}</div>` : '<div class="text-gray-500">关键词: 未填写</div>'}
+                        </div>
+                    `;
                     html += `
                         <div class="publication-item bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                             <div class="flex items-start justify-between mb-3">
@@ -227,6 +246,10 @@
                                     ${pub.url ? `<a href="${pub.url}" target="_blank" class="text-tsinghua-purple hover:underline text-sm">查看论文</a>` : ''}
                                 </div>
                             ` : (pub.url ? `<a href="${pub.url}" target="_blank" class="text-tsinghua-purple hover:underline text-sm">查看论文</a>` : '')}
+                            <div class="mt-3">
+                                <button type="button" onclick="togglePublicationDetails('${detailId}', this)" class="text-sm text-tsinghua-purple hover:underline">显示详细信息</button>
+                            </div>
+                            ${detailHtml}
                         </div>
                     `;
                 });
@@ -243,19 +266,33 @@
         // 获取类型徽标
         function getTypeBadge(type) {
             switch (type) {
-                case 'SCI': return { colorClass: 'bg-blue-100 text-blue-800', label: 'SCI' };
-                case 'EI': return { colorClass: 'bg-green-100 text-green-800', label: 'EI' };
+                case 'SCI': return { colorClass: 'bg-blue-100 text-blue-800', label: 'SCI收录' };
+                case 'EI': return { colorClass: 'bg-green-100 text-green-800', label: 'EI收录' };
                 case 'Conference': return { colorClass: 'bg-orange-100 text-orange-800', label: '国际会议' };
                 case 'DomesticConference': return { colorClass: 'bg-yellow-100 text-yellow-800', label: '国内会议' };
                 default: return { colorClass: 'bg-gray-100 text-gray-800', label: '其他' };
             }
         }
 
+        function togglePublicationDetails(detailId, btn) {
+            const detail = document.getElementById(detailId);
+            if (!detail || !btn) return;
+
+            const hidden = detail.classList.contains('hidden');
+            if (hidden) {
+                detail.classList.remove('hidden');
+                btn.textContent = '隐藏详细信息';
+            } else {
+                detail.classList.add('hidden');
+                btn.textContent = '显示详细信息';
+            }
+        }
+
         // 获取筛选名称
         function getFilterName(filter) {
             const names = {
-                'sci': 'SCI',
-                'ei': 'EI',
+                'sci': 'SCI收录',
+                'ei': 'EI收录',
                 'conference': '会议'
             };
             return names[filter] || '';
