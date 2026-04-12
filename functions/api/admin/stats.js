@@ -2,6 +2,8 @@
 import { authenticate, requireAdmin, createResponse, createErrorResponse, initDatabase } from './utils.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+const ALLOWED_GRANULARITIES = ['day', 'week'];
 const ALLOWED_TYPES = ['SCI', 'EI', 'Conference', 'DomesticConference'];
 const TYPE_ALIASES = new Map([
     ['sci', 'SCI'],
@@ -30,14 +32,50 @@ function parseRangeDays(rawValue) {
     return 30;
 }
 
-function getDateBuckets(days) {
+function parseGranularity(rawValue) {
+    const value = String(rawValue || '').trim().toLowerCase();
+    if (ALLOWED_GRANULARITIES.includes(value)) {
+        return value;
+    }
+    return 'day';
+}
+
+function toDateKeyUtc(date) {
+    return date.toISOString().slice(0, 10);
+}
+
+function getUtcDayStart(date) {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function addUtcDays(date, days) {
+    return new Date(date.getTime() + days * DAY_MS);
+}
+
+function getUtcWeekStart(date) {
+    const weekday = date.getUTCDay();
+    const offset = (weekday + 6) % 7;
+    return addUtcDays(getUtcDayStart(date), -offset);
+}
+
+function getDateBuckets(days, granularity = 'day') {
     const buckets = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getUtcDayStart(new Date());
+
+    if (granularity === 'week') {
+        const rangeStart = addUtcDays(today, -(days - 1));
+        const startWeek = getUtcWeekStart(rangeStart);
+        const endWeek = getUtcWeekStart(today);
+
+        for (let cursor = startWeek; cursor.getTime() <= endWeek.getTime(); cursor = new Date(cursor.getTime() + WEEK_MS)) {
+            buckets.push(toDateKeyUtc(cursor));
+        }
+        return buckets;
+    }
 
     for (let i = days - 1; i >= 0; i -= 1) {
-        const dt = new Date(today.getTime() - i * DAY_MS);
-        buckets.push(dt.toISOString().slice(0, 10));
+        const dt = addUtcDays(today, -i);
+        buckets.push(toDateKeyUtc(dt));
     }
 
     return buckets;
@@ -49,6 +87,49 @@ function toCountSeries(rows, buckets) {
         map.set(row.day, Number.parseInt(row.count, 10) || 0);
     }
     return buckets.map((day) => map.get(day) || 0);
+}
+
+function calculateMovingAverage(series, windowSize) {
+    const values = Array.isArray(series) ? series : [];
+    const window = Math.max(1, Number.parseInt(windowSize, 10) || 1);
+    const result = [];
+
+    for (let i = 0; i < values.length; i += 1) {
+        const start = Math.max(0, i - window + 1);
+        const segment = values.slice(start, i + 1);
+        const sum = segment.reduce((acc, cur) => acc + (Number(cur) || 0), 0);
+        result.push(Number((sum / segment.length).toFixed(2)));
+    }
+
+    return result;
+}
+
+function findPeakPoint(series, buckets) {
+    const values = Array.isArray(series) ? series : [];
+    const labels = Array.isArray(buckets) ? buckets : [];
+    let peakIndex = 0;
+    let peakValue = 0;
+
+    for (let i = 0; i < values.length; i += 1) {
+        const value = Number(values[i]) || 0;
+        if (value > peakValue) {
+            peakValue = value;
+            peakIndex = i;
+        }
+    }
+
+    return {
+        index: peakIndex,
+        date: labels[peakIndex] || null,
+        value: peakValue
+    };
+}
+
+function buildTrendDateExpr(sourceExpr, granularity) {
+    if (granularity === 'week') {
+        return `date(${sourceExpr}, '-' || ((CAST(strftime('%w', ${sourceExpr}) AS INTEGER) + 6) % 7) || ' days')`;
+    }
+    return `date(${sourceExpr})`;
 }
 
 function normalizeTypeValue(value) {
@@ -211,7 +292,12 @@ export async function onRequestGet(context) {
 
         const url = new URL(request.url);
         const rangeDays = parseRangeDays(url.searchParams.get('rangeDays') || url.searchParams.get('range'));
+        const granularity = parseGranularity(url.searchParams.get('granularity'));
         const offsetExpr = `-${rangeDays - 1} day`;
+        const publicationDateExpr = buildTrendDateExpr('created_at', granularity);
+        const newsSourceExpr = 'COALESCE(publish_date, created_at)';
+        const newsDateExpr = buildTrendDateExpr(newsSourceExpr, granularity);
+        const filesDateExpr = buildTrendDateExpr('created_at', granularity);
         
         const db = env.DB;
         await initDatabase(db);
@@ -239,24 +325,24 @@ export async function onRequestGet(context) {
             db.prepare('SELECT COUNT(*) as count FROM team_members').first(),
             db.prepare('SELECT COUNT(*) as count FROM files').first(),
             db.prepare(`
-                SELECT date(created_at) as day, COUNT(*) as count
+                SELECT ${publicationDateExpr} as day, COUNT(*) as count
                 FROM publications
-                WHERE date(created_at) >= date('now', ?)
-                GROUP BY date(created_at)
+                WHERE ${publicationDateExpr} >= date('now', ?)
+                GROUP BY ${publicationDateExpr}
                 ORDER BY day ASC
             `).bind(offsetExpr).all(),
             db.prepare(`
-                SELECT date(COALESCE(publish_date, created_at)) as day, COUNT(*) as count
+                SELECT ${newsDateExpr} as day, COUNT(*) as count
                 FROM news
-                WHERE date(COALESCE(publish_date, created_at)) >= date('now', ?)
-                GROUP BY date(COALESCE(publish_date, created_at))
+                WHERE ${newsDateExpr} >= date('now', ?)
+                GROUP BY ${newsDateExpr}
                 ORDER BY day ASC
             `).bind(offsetExpr).all(),
             db.prepare(`
-                SELECT date(created_at) as day, COUNT(*) as count
+                SELECT ${filesDateExpr} as day, COUNT(*) as count
                 FROM files
-                WHERE date(created_at) >= date('now', ?)
-                GROUP BY date(created_at)
+                WHERE ${filesDateExpr} >= date('now', ?)
+                GROUP BY ${filesDateExpr}
                 ORDER BY day ASC
             `).bind(offsetExpr).all(),
             db.prepare('SELECT type, types, title, journal, keywords, doi FROM publications').all(),
@@ -298,7 +384,14 @@ export async function onRequestGet(context) {
             `).first()
         ]);
 
-        const buckets = getDateBuckets(rangeDays);
+        const buckets = getDateBuckets(rangeDays, granularity);
+        const movingAverageWindow = granularity === 'week' ? 4 : 7;
+        const publicationSeries = toCountSeries(publicationTrendRows.results || [], buckets);
+        const newsSeries = toCountSeries(newsTrendRows.results || [], buckets);
+        const filesSeries = toCountSeries(filesTrendRows.results || [], buckets);
+        const publicationMovingAvg = calculateMovingAverage(publicationSeries, movingAverageWindow);
+        const newsMovingAvg = calculateMovingAverage(newsSeries, movingAverageWindow);
+        const filesMovingAvg = calculateMovingAverage(filesSeries, movingAverageWindow);
         const publicationTypeDistribution = buildPublicationTypeDistribution(publicationTypeRows.results || []);
         const publicationWorkflow = buildWorkflowSummary(publicationWorkflowRows.results || [], {
             dueScheduled: duePublicationScheduled?.count,
@@ -320,11 +413,22 @@ export async function onRequestGet(context) {
             team: teamCount.count,
             files: filesCount.count,
             rangeDays,
+            granularity,
             trends: {
                 dates: buckets,
-                publications: toCountSeries(publicationTrendRows.results || [], buckets),
-                news: toCountSeries(newsTrendRows.results || [], buckets),
-                files: toCountSeries(filesTrendRows.results || [], buckets)
+                granularity,
+                movingAverageWindow,
+                publications: publicationSeries,
+                news: newsSeries,
+                files: filesSeries,
+                publicationsMovingAvg: publicationMovingAvg,
+                newsMovingAvg: newsMovingAvg,
+                filesMovingAvg: filesMovingAvg,
+                peaks: {
+                    publications: findPeakPoint(publicationSeries, buckets),
+                    news: findPeakPoint(newsSeries, buckets),
+                    files: findPeakPoint(filesSeries, buckets)
+                }
             },
             distributions: {
                 publicationTypes: publicationTypeDistribution

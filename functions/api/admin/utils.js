@@ -161,6 +161,11 @@ export async function initDatabase(db) {
         `).run();
         await db.prepare('CREATE INDEX IF NOT EXISTS idx_file_refs_entity ON file_references(entity_type, entity_id)').run();
         await db.prepare('CREATE INDEX IF NOT EXISTS idx_file_refs_file ON file_references(file_id)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_publications_created_at ON publications(created_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_publications_status_created_at ON publications(status, created_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_news_publish_date ON news(publish_date)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_news_created_at ON news(created_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at)').run();
 
         await ensureColumnExists(db, 'publications', 'type', 'TEXT');
         await ensureColumnExists(db, 'publications', 'types', 'TEXT');

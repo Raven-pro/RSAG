@@ -395,6 +395,18 @@ body {
   .table-container {
     font-size: 0.75rem;
   }
+
+  #trend-granularity,
+  #range-days {
+    width: 100% !important;
+    min-width: 104px;
+  }
+}
+
+@media (max-width: 576px) {
+  #trend-rows {
+    font-size: 0.75rem;
+  }
 }
 
 /* 工具栏样式 */
