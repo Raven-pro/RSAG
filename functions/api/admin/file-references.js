@@ -15,6 +15,21 @@ export function normalizeFileUrl(fileUrl) {
     return normalizeText(fileUrl);
 }
 
+function normalizeFileUrlList(fileUrls) {
+    if (!Array.isArray(fileUrls)) {
+        return [];
+    }
+
+    const dedup = new Set();
+    for (const value of fileUrls) {
+        const normalized = normalizeFileUrl(value);
+        if (normalized) {
+            dedup.add(normalized);
+        }
+    }
+    return Array.from(dedup.values());
+}
+
 async function getLatestFileByUrl(db, fileUrl) {
     const normalizedUrl = normalizeFileUrl(fileUrl);
     if (!normalizedUrl) return null;
@@ -104,6 +119,69 @@ export async function syncEntityFileReference(db, { entityType, entityId, fieldN
     `).bind(targetFileId, safeEntityType, safeEntityId, safeFieldName).run();
 
     await refreshFileReferenceStats(db, targetFileId);
+}
+
+export async function syncEntityFileReferences(db, { entityType, entityId, fieldName, fileUrls }) {
+    const safeEntityType = normalizeText(entityType);
+    const safeFieldName = normalizeText(fieldName);
+    const safeEntityId = toPositiveInt(entityId);
+
+    if (!safeEntityType || !safeFieldName || !safeEntityId) {
+        return;
+    }
+
+    const normalizedUrls = normalizeFileUrlList(fileUrls);
+
+    const existingRefs = await db.prepare(`
+        SELECT file_id
+        FROM file_references
+        WHERE entity_type = ? AND entity_id = ? AND field_name = ?
+    `).bind(safeEntityType, safeEntityId, safeFieldName).all();
+
+    const existingRows = existingRefs.results || [];
+    const existingFileIds = existingRows
+        .map((row) => toPositiveInt(row.file_id))
+        .filter((id) => id !== null);
+
+    const targetFileIds = [];
+    for (const url of normalizedUrls) {
+        const file = await getLatestFileByUrl(db, url);
+        const fileId = toPositiveInt(file?.id);
+        if (fileId && !targetFileIds.includes(fileId)) {
+            targetFileIds.push(fileId);
+        }
+    }
+
+    const existingSet = new Set(existingFileIds);
+    const targetSet = new Set(targetFileIds);
+    const unchanged = existingFileIds.length === targetFileIds.length
+        && existingFileIds.every((id) => targetSet.has(id));
+
+    if (unchanged) {
+        for (const fileId of targetFileIds) {
+            await refreshFileReferenceStats(db, fileId);
+        }
+        return;
+    }
+
+    if (existingRows.length) {
+        await db.prepare(`
+            DELETE FROM file_references
+            WHERE entity_type = ? AND entity_id = ? AND field_name = ?
+        `).bind(safeEntityType, safeEntityId, safeFieldName).run();
+    }
+
+    for (const fileId of targetFileIds) {
+        await db.prepare(`
+            INSERT OR IGNORE INTO file_references (file_id, entity_type, entity_id, field_name)
+            VALUES (?, ?, ?, ?)
+        `).bind(fileId, safeEntityType, safeEntityId, safeFieldName).run();
+    }
+
+    const affectedFileIds = new Set([...existingSet, ...targetSet]);
+    for (const fileId of affectedFileIds) {
+        await refreshFileReferenceStats(db, fileId);
+    }
 }
 
 export async function clearEntityFileReferences(db, { entityType, entityId }) {

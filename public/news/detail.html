@@ -32,6 +32,8 @@
             margin-bottom: 1.75rem;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800">
     <main class="container mx-auto max-w-4xl px-4 py-10">
@@ -138,11 +140,35 @@
             err.classList.remove('hidden');
         }
 
-        function applyBasicMarkdown(html) {
-            if (!html) return '';
-            return String(html)
-                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                .replace(/__(.+?)__/g, '<strong>$1</strong>');
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderMarkdownToHtml(markdown) {
+            const source = String(markdown || '').trim();
+            if (!source) {
+                return '';
+            }
+
+            try {
+                if (window.marked) {
+                    marked.setOptions({ gfm: true, breaks: true });
+                    const rawHtml = marked.parse(source);
+                    if (window.DOMPurify) {
+                        return DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } });
+                    }
+                    return rawHtml;
+                }
+            } catch (error) {
+                console.warn('Markdown 渲染失败，回退为纯文本:', error);
+            }
+
+            return `<p>${escapeHtml(source).replace(/\n/g, '<br>')}</p>`;
         }
 
         async function loadNewsDetail() {
@@ -209,7 +235,7 @@
                     summary.classList.remove('hidden');
                 }
 
-                document.getElementById('news-body').innerHTML = applyBasicMarkdown(content) || `<p>${i18n[currentLang].noBody}</p>`;
+                document.getElementById('news-body').innerHTML = renderMarkdownToHtml(content) || `<p>${i18n[currentLang].noBody}</p>`;
             } catch (error) {
                 showError(`${i18n[currentLang].loadFailed}：${error.message}`);
             }

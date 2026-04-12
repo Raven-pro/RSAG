@@ -9,13 +9,44 @@ import {
     initDatabase
 } from '../utils.js';
 import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
-import { syncEntityFileReference, clearEntityFileReferences } from '../file-references.js';
+import { syncEntityFileReference, syncEntityFileReferences, clearEntityFileReferences } from '../file-references.js';
 
 function hydrateNewsRow(row) {
     return {
         ...row,
         status: normalizeWorkflowStatus(row?.status, 'draft')
     };
+}
+
+function extractEmbeddedImageUrls(...contents) {
+    const merged = contents.map((item) => String(item || '')).join('\n');
+    if (!merged.trim()) {
+        return [];
+    }
+
+    const urls = new Set();
+
+    const markdownPattern = /!\[[^\]]*\]\(([^)\n]+)\)/g;
+    let markdownMatch;
+    while ((markdownMatch = markdownPattern.exec(merged)) !== null) {
+        const raw = String(markdownMatch[1] || '').trim();
+        if (!raw) continue;
+        const normalized = raw.replace(/^<|>$/g, '').split(/\s+/)[0].trim();
+        if (normalized) {
+            urls.add(normalized);
+        }
+    }
+
+    const htmlPattern = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    let htmlMatch;
+    while ((htmlMatch = htmlPattern.exec(merged)) !== null) {
+        const normalized = String(htmlMatch[1] || '').trim();
+        if (normalized) {
+            urls.add(normalized);
+        }
+    }
+
+    return Array.from(urls.values());
 }
 
 // GET /api/admin/news/[id]
@@ -110,6 +141,13 @@ export async function onRequestPut(context) {
             entityId: id,
             fieldName: 'featured_image',
             fileUrl: featured_image
+        });
+
+        await syncEntityFileReferences(db, {
+            entityType: 'news',
+            entityId: id,
+            fieldName: 'content_images',
+            fileUrls: extractEmbeddedImageUrls(content, content_en)
         });
 
         await logActivity(

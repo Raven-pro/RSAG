@@ -1,13 +1,46 @@
 // 新闻管理API
 import { authenticate, isAdminUser, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 import { normalizeWorkflowStatus, parseWorkflowStatusFilter, buildWorkflowOnCreate } from './workflow.js';
-import { syncEntityFileReference } from './file-references.js';
+import { syncEntityFileReference, syncEntityFileReferences } from './file-references.js';
 
 function hydrateNewsRow(row) {
     return {
         ...row,
         status: normalizeWorkflowStatus(row?.status, 'draft')
     };
+}
+
+function extractEmbeddedImageUrls(...contents) {
+    const merged = contents.map((item) => String(item || '')).join('\n');
+    if (!merged.trim()) {
+        return [];
+    }
+
+    const urls = new Set();
+
+    // Markdown image syntax: ![alt](url)
+    const markdownPattern = /!\[[^\]]*\]\(([^)\n]+)\)/g;
+    let markdownMatch;
+    while ((markdownMatch = markdownPattern.exec(merged)) !== null) {
+        const raw = String(markdownMatch[1] || '').trim();
+        if (!raw) continue;
+        const normalized = raw.replace(/^<|>$/g, '').split(/\s+/)[0].trim();
+        if (normalized) {
+            urls.add(normalized);
+        }
+    }
+
+    // HTML image syntax: <img src="...">
+    const htmlPattern = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    let htmlMatch;
+    while ((htmlMatch = htmlPattern.exec(merged)) !== null) {
+        const normalized = String(htmlMatch[1] || '').trim();
+        if (normalized) {
+            urls.add(normalized);
+        }
+    }
+
+    return Array.from(urls.values());
 }
 
 // GET /api/admin/news - 获取新闻列表
@@ -145,6 +178,13 @@ export async function onRequestPost(context) {
             entityId: result.meta.last_row_id,
             fieldName: 'featured_image',
             fileUrl: featured_image
+        });
+
+        await syncEntityFileReferences(db, {
+            entityType: 'news',
+            entityId: result.meta.last_row_id,
+            fieldName: 'content_images',
+            fileUrls: extractEmbeddedImageUrls(content, content_en)
         });
         
         // 记录活动日志
