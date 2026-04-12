@@ -535,6 +535,19 @@
                 return `<text x="${x}" y="${y}" font-size="${labelFontSize}" font-weight="500" fill="#64748b" text-anchor="middle">${formatBucketLabel(date, mode)}</text>`;
             }).join('');
 
+            const hoverTargets = xPositions.map((x, index) => {
+                const prev = index > 0 ? xPositions[index - 1] : (x - slotWidth);
+                const next = index < xPositions.length - 1 ? xPositions[index + 1] : (x + slotWidth);
+                const left = index === 0 ? (x - (next - x) / 2) : ((prev + x) / 2);
+                const right = index === xPositions.length - 1 ? (x + (x - prev) / 2) : ((x + next) / 2);
+                const widthPx = Math.max(8, right - left);
+                return `<rect data-hover-index="${index}" x="${left}" y="${topPad}" width="${widthPx}" height="${innerHeight}" fill="transparent" style="cursor:crosshair;" />`;
+            }).join('');
+
+            const hoverDots = visibleSeries.map((item) => `
+                <circle data-hover-dot="${item.key}" cx="0" cy="0" r="4.1" fill="#ffffff" stroke="${item.lineColor}" stroke-width="2" visibility="hidden" />
+            `).join('');
+
             const legendMarkup = series.map((item) => {
                 const isHidden = hiddenTrendSeries.has(item.key);
                 const bg = isHidden ? '#f8fafc' : '#eef2ff';
@@ -548,7 +561,7 @@
                 `;
             }).join('');
 
-            const desc = '运营趋势组合图，柱状与折线都表示新增数量。'; 
+            const desc = '运营趋势组合图，柱状与折线都表示新增数量，支持鼠标悬浮查看详细值。'; 
             const emptyHint = visibleSeries.length === 0
                 ? '<div style="padding:0.7rem 0.75rem; color:#b45309; font-size:0.82rem;">请至少保留一个维度。</div>'
                 : '';
@@ -556,10 +569,10 @@
             container.innerHTML = `
                 <div style="display:flex; gap:0.65rem; flex-wrap:wrap; align-items:center; margin-bottom:0.75rem; font-size:0.83rem; color:#334155;">
                     ${legendMarkup}
-                    <span style="font-size:0.8rem; color:#64748b; margin-left:0.2rem;">柱: 新增量 / 线: 新增量趋势</span>
+                    <span style="font-size:0.8rem; color:#64748b; margin-left:0.2rem;">柱: 新增量 / 线: 新增量趋势（悬浮查看明细）</span>
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:12px; padding:0.5rem; background:#ffffff; overflow-x:auto;">
-                    <div style="min-width:760px;">
+                    <div data-trend-chart-wrap style="min-width:760px; position:relative;">
                         <svg viewBox="0 0 ${width} ${height}" style="width:100%; display:block;" role="img" aria-label="运营趋势组合图">
                             <desc>${desc}</desc>
                             ${yGrid}
@@ -568,11 +581,102 @@
                             ${lineMarkup}
                             ${peakMarkup}
                             ${xAxisLabels}
+                            <line data-hover-guide x1="0" y1="${topPad}" x2="0" y2="${topPad + innerHeight}" stroke="#64748b" stroke-width="1.2" stroke-dasharray="4 4" visibility="hidden" />
+                            ${hoverDots}
+                            ${hoverTargets}
                         </svg>
+                        <div data-hover-tooltip style="position:absolute; left:0; top:0; display:none; pointer-events:none; z-index:4; min-width:170px; max-width:260px; background:rgba(15,23,42,0.92); color:#f8fafc; border-radius:8px; padding:0.5rem 0.6rem; font-size:0.77rem; line-height:1.45; box-shadow:0 10px 24px rgba(2,6,23,0.25);"></div>
                     </div>
                 </div>
                 ${emptyHint}
             `;
+
+            const chartWrap = container.querySelector('[data-trend-chart-wrap]');
+            const svg = chartWrap?.querySelector('svg');
+            const tooltip = chartWrap?.querySelector('[data-hover-tooltip]');
+            const hoverGuide = svg?.querySelector('[data-hover-guide]');
+            const hoverDotMap = new Map();
+            svg?.querySelectorAll('[data-hover-dot]').forEach((dot) => {
+                hoverDotMap.set(dot.getAttribute('data-hover-dot'), dot);
+            });
+
+            const hideHover = () => {
+                if (tooltip) {
+                    tooltip.style.display = 'none';
+                }
+                if (hoverGuide) {
+                    hoverGuide.setAttribute('visibility', 'hidden');
+                }
+                hoverDotMap.forEach((dot) => dot.setAttribute('visibility', 'hidden'));
+            };
+
+            const updateHover = (index, event) => {
+                if (!tooltip || !hoverGuide || !chartWrap) return;
+                if (!Number.isInteger(index) || index < 0 || index >= dates.length) {
+                    hideHover();
+                    return;
+                }
+
+                const dateText = String(dates[index] || '');
+                const title = mode === 'week' ? `${dateText} 当周` : dateText;
+                const rows = series.map((item) => {
+                    const value = Number(item.values[index]) || 0;
+                    const muted = hiddenTrendSeries.has(item.key) ? 'opacity:0.5;' : '';
+                    return `
+                        <div style="display:flex; justify-content:space-between; gap:0.8rem; ${muted}">
+                            <span style="display:inline-flex; align-items:center; gap:0.33rem;"><span style="width:7px; height:7px; border-radius:50%; background:${item.lineColor};"></span>${item.label}</span>
+                            <strong style="font-weight:700; color:#e2e8f0;">${value}</strong>
+                        </div>
+                    `;
+                }).join('');
+
+                tooltip.innerHTML = `<div style="font-weight:700; color:#ffffff; margin-bottom:0.33rem;">${title}</div>${rows}`;
+                tooltip.style.display = 'block';
+
+                const wrapRect = chartWrap.getBoundingClientRect();
+                const tooltipWidth = tooltip.offsetWidth || 180;
+                const tooltipHeight = tooltip.offsetHeight || 90;
+                let left = event.clientX - wrapRect.left + 12;
+                let top = event.clientY - wrapRect.top - tooltipHeight - 10;
+
+                if (left + tooltipWidth > wrapRect.width - 6) {
+                    left = wrapRect.width - tooltipWidth - 6;
+                }
+                if (left < 6) {
+                    left = 6;
+                }
+                if (top < 6) {
+                    top = Math.min(wrapRect.height - tooltipHeight - 6, event.clientY - wrapRect.top + 14);
+                }
+
+                tooltip.style.left = `${left}px`;
+                tooltip.style.top = `${Math.max(6, top)}px`;
+
+                const guideX = xPositions[index];
+                hoverGuide.setAttribute('x1', String(guideX));
+                hoverGuide.setAttribute('x2', String(guideX));
+                hoverGuide.setAttribute('visibility', 'visible');
+
+                hoverDotMap.forEach((dot) => dot.setAttribute('visibility', 'hidden'));
+                visibleSeries.forEach((item) => {
+                    const dot = hoverDotMap.get(item.key);
+                    if (!dot) return;
+                    const value = Number(item.values[index]) || 0;
+                    const y = topPad + innerHeight - (value / axisMax) * innerHeight;
+                    const x = xPositions[index] + (seriesOffsets.get(item.key) || 0);
+                    dot.setAttribute('cx', String(x));
+                    dot.setAttribute('cy', String(y));
+                    dot.setAttribute('visibility', 'visible');
+                });
+            };
+
+            svg?.querySelectorAll('[data-hover-index]').forEach((node) => {
+                const index = Number.parseInt(node.getAttribute('data-hover-index') || '', 10);
+                node.addEventListener('mouseenter', (event) => updateHover(index, event));
+                node.addEventListener('mousemove', (event) => updateHover(index, event));
+            });
+
+            chartWrap?.addEventListener('mouseleave', hideHover);
 
             container.querySelectorAll('[data-series-toggle]').forEach((button) => {
                 button.addEventListener('click', () => {
