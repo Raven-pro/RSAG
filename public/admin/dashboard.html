@@ -432,10 +432,11 @@
             const leftPad = 48;
             const rightPad = 24;
             const topPad = 16;
-            const labelStep = dates.length > 90 ? 14 : dates.length > 45 ? 7 : dates.length > 20 ? 3 : 1;
-            const shouldRotate = mode === 'day' && dates.length > 18;
-            const rotation = shouldRotate ? -40 : 0;
-            const bottomPad = shouldRotate ? 62 : 34;
+            const labelStep = dates.length > 120 ? 21 : dates.length > 90 ? 14 : dates.length > 60 ? 10 : dates.length > 30 ? 5 : dates.length > 14 ? 2 : 1;
+            const shouldRotate = mode === 'day' && dates.length > 14 && dates.length <= 45;
+            const rotation = shouldRotate ? -32 : 0;
+            const labelFontSize = dates.length > 90 ? 9 : dates.length > 45 ? 9.5 : dates.length > 20 ? 10 : 11;
+            const bottomPad = shouldRotate ? 46 : 28;
 
             const plotWidth = width - leftPad - rightPad;
             const slotWidth = dates.length > 1 ? plotWidth / (dates.length - 1) : plotWidth;
@@ -450,6 +451,12 @@
             const activeCount = Math.max(1, visibleSeries.length);
             const barGap = 2;
             const barWidth = Math.max(4, (groupWidth - barGap * (activeCount - 1)) / activeCount);
+            const fullGroupWidth = activeCount * barWidth + (activeCount - 1) * barGap;
+            const offsetStart = -fullGroupWidth / 2 + barWidth / 2;
+            const seriesOffsets = new Map();
+            visibleSeries.forEach((item, index) => {
+                seriesOffsets.set(item.key, offsetStart + index * (barWidth + barGap));
+            });
             const yStep = Math.max(1, Math.ceil(maxValue / 4));
             const axisMax = yStep * 4;
 
@@ -469,12 +476,12 @@
 
             const barsMarkup = dates.map((_, index) => {
                 const centerX = xPositions[index];
-                const startX = centerX - groupWidth / 2;
                 return visibleSeries.map((item, seriesIndex) => {
                     const rawValue = Number(item.values[index]) || 0;
                     const barHeight = axisMax > 0 ? (rawValue / axisMax) * innerHeight : 0;
                     const renderedHeight = barHeight > 0 ? Math.max(1, barHeight) : 0;
-                    const barX = startX + seriesIndex * (barWidth + barGap);
+                    const offset = seriesOffsets.get(item.key) || 0;
+                    const barX = centerX + offset - barWidth / 2;
                     const barY = topPad + innerHeight - renderedHeight;
                     return `
                         <rect x="${barX}" y="${barY}" width="${barWidth}" height="${renderedHeight}" rx="1.8" fill="${item.barColor}" opacity="0.95">
@@ -485,7 +492,9 @@
             }).join('');
 
             const lineMarkup = visibleSeries.map((item) => {
-                const points = buildSeriesPoints(item.movingAvg, xPositions, topPad, innerHeight, axisMax);
+                const offset = seriesOffsets.get(item.key) || 0;
+                const linePositions = xPositions.map((x) => x + offset);
+                const points = buildSeriesPoints(item.movingAvg, linePositions, topPad, innerHeight, axisMax);
                 const path = buildLinePath(points);
                 return `
                     <path d="${path}" fill="none" stroke="${item.lineColor}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
@@ -502,7 +511,8 @@
                 if (peakValue <= 0) {
                     return '';
                 }
-                const x = xPositions[peakIndex];
+                const offset = seriesOffsets.get(item.key) || 0;
+                const x = xPositions[peakIndex] + offset;
                 const y = topPad + innerHeight - (peakValue / axisMax) * innerHeight;
                 const labelY = Math.max(topPad + 10, y - 10);
                 return `
@@ -518,11 +528,12 @@
                     return '';
                 }
                 const x = xPositions[index];
-                const y = height - 9;
+                const axisBottom = topPad + innerHeight;
+                const y = axisBottom + (shouldRotate ? 10 : 14);
                 if (shouldRotate) {
-                    return `<text x="${x}" y="${y}" font-size="11" font-weight="500" fill="#64748b" text-anchor="end" transform="rotate(${rotation} ${x} ${y})">${formatBucketLabel(date, mode)}</text>`;
+                    return `<text x="${x}" y="${y}" font-size="${labelFontSize}" font-weight="500" fill="#64748b" text-anchor="end" transform="rotate(${rotation} ${x} ${y})">${formatBucketLabel(date, mode)}</text>`;
                 }
-                return `<text x="${x}" y="${y}" font-size="11" font-weight="500" fill="#64748b" text-anchor="middle">${formatBucketLabel(date, mode)}</text>`;
+                return `<text x="${x}" y="${y}" font-size="${labelFontSize}" font-weight="500" fill="#64748b" text-anchor="middle">${formatBucketLabel(date, mode)}</text>`;
             }).join('');
 
             const legendMarkup = series.map((item) => {
