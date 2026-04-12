@@ -70,6 +70,10 @@
                         <option value="published">已发布</option>
                         <option value="scheduled">定时发布</option>
                     </select>
+                    <select id="ownership-filter" class="form-select" style="width: auto; margin-left: 1rem;" data-hide-for="admin">
+                        <option value="all">全部论文（可下载）</option>
+                        <option value="mine">我的论文（可编辑）</option>
+                    </select>
                 </div>
                 <div class="toolbar-right">
                     <select id="bulk-status" class="form-select" style="width:auto;" data-role="admin">
@@ -239,6 +243,7 @@
         const currentUser = AdminUtils.getCurrentUser();
         const isAdmin = AdminUtils.isAdmin();
         let pendingBindPdfUrl = '';
+        let currentOwnership = 'all';
 
         function getTableColumnSpan() {
             return isAdmin ? 7 : 6;
@@ -248,12 +253,16 @@
             const addBtn = document.getElementById('add-publication-btn');
             const saveText = document.getElementById('save-text');
             const statusSelect = document.getElementById('status');
+            const ownershipFilter = document.getElementById('ownership-filter');
 
             if (!isAdmin) {
                 addBtn.textContent = '➕ 提交论文';
                 saveText.textContent = '提交审核';
                 statusSelect.innerHTML = '<option value="pending_review">待审核</option>';
                 statusSelect.value = 'pending_review';
+                if (ownershipFilter) {
+                    ownershipFilter.value = currentOwnership;
+                }
             }
 
             updateScheduledFieldVisibility();
@@ -290,6 +299,7 @@
             const status = String(params.get('status') || '').trim();
             const type = String(params.get('type') || '').trim();
             const search = String(params.get('search') || '').trim();
+            const ownership = String(params.get('ownership') || '').trim().toLowerCase();
 
             if (workflowStatuses.includes(status)) {
                 currentStatus = status;
@@ -304,6 +314,14 @@
             if (search) {
                 currentSearch = search;
                 document.getElementById('search-input').value = search;
+            }
+
+            if (!isAdmin && ['all', 'mine'].includes(ownership)) {
+                currentOwnership = ownership;
+                const ownershipFilter = document.getElementById('ownership-filter');
+                if (ownershipFilter) {
+                    ownershipFilter.value = ownership;
+                }
             }
 
             if (String(params.get('action') || '').trim() === 'bind_pdf') {
@@ -509,7 +527,8 @@
                     limit: '10',
                     ...(search && { search }),
                     ...(type && { type }),
-                    ...(status && { status })
+                    ...(status && { status }),
+                    ...(!isAdmin && currentOwnership && { ownership: currentOwnership })
                 });
                 
                 const response = await AdminUtils.apiRequest(`/publications?${params}`);
@@ -530,7 +549,9 @@
                     return;
                 }
                 
-                tbody.innerHTML = publications.map(pub => `
+                tbody.innerHTML = publications.map(pub => {
+                    const canEdit = isAdmin || (String(pub.created_by || '') === String(currentUser?.username || ''));
+                    return `
                     <tr data-publication-id="${pub.id}">
                         ${isAdmin ? `<td><input type="checkbox" class="publication-row-select" data-id="${pub.id}"></td>` : ''}
                         <td>
@@ -549,9 +570,7 @@
                         <td>
                             <div style="display:flex; flex-direction:column; gap:0.45rem;">
                                 <div style="display:flex; gap:0.45rem;">
-                                    <button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">
-                                        编辑
-                                    </button>
+                                    ${canEdit ? `<button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">编辑</button>` : ''}
                                     ${pendingBindPdfUrl ? `<button class="btn btn-small btn-primary" onclick="bindPendingPdfToPublication(${pub.id})">绑定此PDF</button>` : ''}
                                     ${isAdmin ? `<button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">删除</button>` : ''}
                                 </div>
@@ -562,7 +581,8 @@
                             </div>
                         </td>
                     </tr>
-                `).join('');
+                `;
+                }).join('');
                 resetPublicationSelection();
                 flashPublicationRows(highlightPublicationIds);
                 
@@ -861,6 +881,13 @@
 
         document.getElementById('status-filter').addEventListener('change', (e) => {
             currentStatus = e.target.value;
+            currentPage = 1;
+            loadPublications(1, currentSearch, currentType, currentStatus);
+        });
+
+        document.getElementById('ownership-filter').addEventListener('change', (e) => {
+            if (isAdmin) return;
+            currentOwnership = e.target.value === 'mine' ? 'mine' : 'all';
             currentPage = 1;
             loadPublications(1, currentSearch, currentType, currentStatus);
         });

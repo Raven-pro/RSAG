@@ -119,6 +119,8 @@ export async function onRequestGet(context) {
         const search = url.searchParams.get('search') || '';
         const type = normalizeTypeValue(url.searchParams.get('type') || '');
         const status = parseWorkflowStatusFilter(url.searchParams.get('status') || '');
+        const ownershipRaw = String(url.searchParams.get('ownership') || '').trim().toLowerCase();
+        const ownership = !isAdmin && ownershipRaw === 'mine' ? 'mine' : 'all';
         
         const db = env.DB;
         
@@ -157,7 +159,7 @@ export async function onRequestGet(context) {
             params.push(status);
         }
 
-        if (!isAdmin) {
+        if (!isAdmin && ownership === 'mine') {
             whereConditions.push('created_by = ?');
             params.push(user.username);
         }
@@ -195,7 +197,8 @@ export async function onRequestGet(context) {
             filters: {
                 search,
                 type,
-                status
+                status,
+                ownership
             }
         });
         
