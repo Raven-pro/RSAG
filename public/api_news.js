@@ -225,10 +225,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function scheduleSidebarFit() {
+    function scheduleSidebarFit(afterFit) {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 fitSidebarHeightOnDesktop();
+                if (typeof afterFit === 'function') {
+                    afterFit();
+                }
             });
         });
     }
