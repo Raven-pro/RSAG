@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const NEWS_GAP_DEFAULT = 12;
     let latestNews = [];
     let latestLang = 'zh';
+    let deferredFitTimers = [];
 
     if (!newsList) {
         console.error('错误：未能找到 ID 为 "news-list" 的新闻列表容器。');
@@ -98,6 +99,42 @@ document.addEventListener('DOMContentLoaded', function() {
         newsList.style.gap = `${clampedGap}px`;
     }
 
+    function getNewsOverflowPx() {
+        const lastItem = newsList.lastElementChild;
+        if (!lastItem) return 0;
+
+        const listRect = newsList.getBoundingClientRect();
+        const itemRect = lastItem.getBoundingClientRect();
+        const visualOverflow = Math.ceil(itemRect.bottom - listRect.bottom);
+        const scrollOverflow = Math.ceil(newsList.scrollHeight - newsList.clientHeight);
+        return Math.max(0, visualOverflow, scrollOverflow);
+    }
+
+    function clearDeferredFitTimers() {
+        deferredFitTimers.forEach((id) => clearTimeout(id));
+        deferredFitTimers = [];
+    }
+
+    function scheduleDeferredRefit(lang) {
+        clearDeferredFitTimers();
+        [120, 360, 900].forEach((delay) => {
+            const timerId = setTimeout(() => {
+                renderNewsToFit(lang);
+            }, delay);
+            deferredFitTimers.push(timerId);
+        });
+
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready
+                .then(() => {
+                    renderNewsToFit(lang);
+                })
+                .catch(() => {
+                    // Ignore font readiness errors; delayed timers already provide fallback refits.
+                });
+        }
+    }
+
     function renderNewsToFit(lang) {
         if (!latestNews.length) {
             renderNoNews(lang);
@@ -113,7 +150,7 @@ document.addEventListener('DOMContentLoaded', function() {
             fitSidebarHeightOnDesktop();
             setAdaptiveGap();
 
-            while (count > 1 && newsList.scrollHeight > newsList.clientHeight + 1) {
+            while (count > 1 && getNewsOverflowPx() > 0) {
                 count -= 1;
                 renderNewsList(latestNews.slice(0, count), lang);
                 fitSidebarHeightOnDesktop();
@@ -246,6 +283,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         renderNewsToFit(lang);
+        scheduleDeferredRefit(lang);
     }
 
     async function loadNewsFromApi() {
