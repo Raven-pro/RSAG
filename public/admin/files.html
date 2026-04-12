@@ -68,6 +68,12 @@
                     </select>
                 </div>
                 <div class="toolbar-right">
+                    <button class="btn btn-secondary" id="expand-all-sections-btn">
+                        ⬇️ 全部展开
+                    </button>
+                    <button class="btn btn-secondary" id="collapse-all-sections-btn">
+                        ⬆️ 全部收起
+                    </button>
                     <button class="btn btn-secondary" id="cleanup-trash-btn">
                         🧹 清理回收站
                     </button>
@@ -149,6 +155,66 @@
         let currentType = '';
         let currentStatus = 'active';
         let selectedFiles = [];
+        const sectionKeys = ['news', 'team_members', 'publications', 'unreferenced'];
+        let groupedSectionFiles = {
+            news: [],
+            team_members: [],
+            publications: [],
+            unreferenced: []
+        };
+        const sectionUiState = {
+            collapsed: {
+                news: false,
+                team_members: false,
+                publications: false,
+                unreferenced: false
+            },
+            query: {
+                news: '',
+                team_members: '',
+                publications: '',
+                unreferenced: ''
+            }
+        };
+
+        function refreshSectionCollapseUi(sectionKey) {
+            const sectionCard = document.querySelector(`#files-sections [data-section-key="${sectionKey}"]`);
+            if (!sectionCard) return;
+
+            const body = sectionCard.querySelector(`[data-section-body="${sectionKey}"]`);
+            if (body) {
+                body.style.display = sectionUiState.collapsed[sectionKey] ? 'none' : 'block';
+            }
+
+            const toggleButton = sectionCard.querySelector(`[data-section-toggle="${sectionKey}"]`);
+            if (toggleButton) {
+                toggleButton.textContent = sectionUiState.collapsed[sectionKey] ? '展开' : '收起';
+            }
+        }
+
+        function updateSectionGlobalControls() {
+            const expandBtn = document.getElementById('expand-all-sections-btn');
+            const collapseBtn = document.getElementById('collapse-all-sections-btn');
+
+            const states = sectionKeys.map((key) => !!sectionUiState.collapsed[key]);
+            const allCollapsed = states.every((value) => value === true);
+            const allExpanded = states.every((value) => value === false);
+
+            if (expandBtn) {
+                expandBtn.disabled = allExpanded;
+            }
+            if (collapseBtn) {
+                collapseBtn.disabled = allCollapsed;
+            }
+        }
+
+        function setAllSectionsCollapsed(collapsed) {
+            sectionKeys.forEach((key) => {
+                sectionUiState.collapsed[key] = collapsed;
+                refreshSectionCollapseUi(key);
+            });
+            updateSectionGlobalControls();
+        }
 
         function flashFileCards(fileIds = []) {
             fileIds.forEach((rawId) => {
@@ -265,8 +331,18 @@
         }
 
         function renderFileCard(file) {
+            const searchText = [
+                file.original_name,
+                file.filename,
+                file.uploaded_by,
+                file.category,
+                ...(Array.isArray(file.references)
+                    ? file.references.flatMap((ref) => [ref.entity_name, ref.location_label, ref.field_name, ref.entity_type_label])
+                    : [])
+            ].map((item) => String(item || '').trim().toLowerCase()).filter(Boolean).join(' ');
+
             return `
-                <div class="card" data-file-id="${file.id}" style="cursor: pointer;" onclick="viewFile(${file.id})">
+                <div class="card" data-file-id="${file.id}" data-section-item="1" data-search-text="${escapeHtml(searchText)}" style="cursor: pointer;" onclick="viewFile(${file.id})">
                     <div style="aspect-ratio: 1; overflow: hidden; border-radius: 8px 8px 0 0; background: #f1f5f9; display: flex; align-items: center; justify-content: center;">
                         ${file.file_type.startsWith('image/')
                             ? `<img src="${file.file_url}" alt="${file.original_name}" style="width: 100%; height: 100%; object-fit: cover;">`
@@ -304,21 +380,120 @@
             `;
         }
 
-        function renderFileSection(sectionTitle, files = [], emptyText = '暂无文件') {
+        function getSectionTitle(sectionKey) {
+            const map = {
+                news: '新闻引用区',
+                team_members: '成员引用区',
+                publications: '论文引用区',
+                unreferenced: '未引用 / 其他'
+            };
+            return map[sectionKey] || sectionKey;
+        }
+
+        function getSectionEmptyText(sectionKey) {
+            const map = {
+                news: '暂无被新闻引用的文件',
+                team_members: '暂无被成员引用的文件',
+                publications: '暂无被论文引用的文件',
+                unreferenced: '暂无未引用文件'
+            };
+            return map[sectionKey] || '暂无文件';
+        }
+
+        function renderFileSection(sectionKey, files = []) {
+            const sectionTitle = getSectionTitle(sectionKey);
+            const emptyText = getSectionEmptyText(sectionKey);
+            const collapsed = !!sectionUiState.collapsed[sectionKey];
+            const keyword = String(sectionUiState.query[sectionKey] || '');
+            const filesCount = files.length;
+
             return `
-                <div class="card">
+                <div class="card" data-section-key="${sectionKey}">
                     <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
-                        <h3 style="margin:0; font-size:1rem;">${sectionTitle}</h3>
-                        <span class="status-badge status-info">${files.length}</span>
+                        <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                            <h3 style="margin:0; font-size:1rem;">${sectionTitle}</h3>
+                            <span class="status-badge status-info" data-section-count>${filesCount}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
+                            <input
+                                type="text"
+                                class="form-input"
+                                placeholder="分区内搜索..."
+                                data-section-search="${sectionKey}"
+                                value="${escapeHtml(keyword)}"
+                                ${filesCount === 0 ? 'disabled' : ''}
+                                style="width: 180px; height: 32px;"
+                            >
+                            <button class="btn btn-small btn-secondary" data-section-toggle="${sectionKey}">
+                                ${collapsed ? '展开' : '收起'}
+                            </button>
+                        </div>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body" data-section-body="${sectionKey}" style="display:${collapsed ? 'none' : 'block'};">
                         ${files.length > 0
-                            ? `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">${files.map((file) => renderFileCard(file)).join('')}</div>`
+                            ? `
+                                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;" data-section-grid="${sectionKey}">
+                                    ${files.map((file) => renderFileCard(file)).join('')}
+                                </div>
+                                <div data-section-empty-filter style="display:none; text-align:center; color:#94a3b8; padding:1rem 0;">该分区没有匹配当前分区搜索的文件</div>
+                              `
                             : `<div style="text-align:center; color:#94a3b8; padding:1rem 0;">${emptyText}</div>`
                         }
                     </div>
                 </div>
             `;
+        }
+
+        function applySectionSearchFilter(sectionKey) {
+            const sectionCard = document.querySelector(`#files-sections [data-section-key="${sectionKey}"]`);
+            if (!sectionCard) return;
+
+            const keyword = String(sectionUiState.query[sectionKey] || '').trim().toLowerCase();
+            const items = Array.from(sectionCard.querySelectorAll('[data-section-item]'));
+            let visibleCount = 0;
+
+            items.forEach((item) => {
+                const haystack = String(item.getAttribute('data-search-text') || '').toLowerCase();
+                const matched = !keyword || haystack.includes(keyword);
+                item.style.display = matched ? '' : 'none';
+                if (matched) {
+                    visibleCount += 1;
+                }
+            });
+
+            const countBadge = sectionCard.querySelector('[data-section-count]');
+            if (countBadge) {
+                countBadge.textContent = keyword ? `${visibleCount}/${items.length}` : `${items.length}`;
+            }
+
+            const emptyByFilter = sectionCard.querySelector('[data-section-empty-filter]');
+            if (emptyByFilter) {
+                emptyByFilter.style.display = (items.length > 0 && visibleCount === 0) ? 'block' : 'none';
+            }
+        }
+
+        function applyAllSectionSearchFilters() {
+            sectionKeys.forEach((sectionKey) => {
+                applySectionSearchFilter(sectionKey);
+            });
+        }
+
+        function renderSectionedFilesView() {
+            const sectionsContainer = document.getElementById('files-sections');
+            const newsFiles = groupedSectionFiles.news || [];
+            const teamFiles = groupedSectionFiles.team_members || [];
+            const publicationFiles = groupedSectionFiles.publications || [];
+            const unreferencedFiles = groupedSectionFiles.unreferenced || [];
+
+            sectionsContainer.innerHTML = `
+                ${renderFileSection('news', newsFiles)}
+                ${renderFileSection('team_members', teamFiles)}
+                ${renderFileSection('publications', publicationFiles)}
+                ${renderFileSection('unreferenced', unreferencedFiles)}
+            `;
+
+            applyAllSectionSearchFilters();
+            updateSectionGlobalControls();
         }
         
         // 加载文件列表
@@ -345,6 +520,13 @@
                 const publicationFiles = Array.isArray(sections.publications) ? sections.publications : [];
                 const unreferencedFiles = Array.isArray(sections.unreferenced) ? sections.unreferenced : [];
 
+                groupedSectionFiles = {
+                    news: newsFiles,
+                    team_members: teamFiles,
+                    publications: publicationFiles,
+                    unreferenced: unreferencedFiles
+                };
+
                 const totalShown = newsFiles.length + teamFiles.length + publicationFiles.length + unreferencedFiles.length;
                 
                 if (totalShown === 0) {
@@ -357,12 +539,7 @@
                     return;
                 }
 
-                sectionsContainer.innerHTML = `
-                    ${renderFileSection('新闻引用区', newsFiles, '暂无被新闻引用的文件')}
-                    ${renderFileSection('成员引用区', teamFiles, '暂无被成员引用的文件')}
-                    ${renderFileSection('论文引用区', publicationFiles, '暂无被论文引用的文件')}
-                    ${renderFileSection('未引用 / 其他', unreferencedFiles, '暂无未引用文件')}
-                `;
+                renderSectionedFilesView();
                 flashFileCards(highlightFileIds);
                 document.getElementById('pagination-container').innerHTML = '';
                 
@@ -694,6 +871,37 @@
         searchInput.addEventListener('input', debouncedSearch);
         typeFilter.addEventListener('change', debouncedSearch);
         statusFilter.addEventListener('change', debouncedSearch);
+
+        const filesSectionsContainer = document.getElementById('files-sections');
+        filesSectionsContainer.addEventListener('click', (e) => {
+            const toggleBtn = e.target.closest('[data-section-toggle]');
+            if (!toggleBtn) return;
+
+            e.preventDefault();
+            const sectionKey = String(toggleBtn.getAttribute('data-section-toggle') || '').trim();
+            if (!sectionKey) return;
+
+            sectionUiState.collapsed[sectionKey] = !sectionUiState.collapsed[sectionKey];
+            refreshSectionCollapseUi(sectionKey);
+            updateSectionGlobalControls();
+        });
+
+        filesSectionsContainer.addEventListener('input', (e) => {
+            const searchInput = e.target.closest('[data-section-search]');
+            if (!searchInput) return;
+
+            const sectionKey = String(searchInput.getAttribute('data-section-search') || '').trim();
+            sectionUiState.query[sectionKey] = searchInput.value || '';
+            applySectionSearchFilter(sectionKey);
+        });
+
+        document.getElementById('expand-all-sections-btn').addEventListener('click', () => {
+            setAllSectionsCollapsed(false);
+        });
+
+        document.getElementById('collapse-all-sections-btn').addEventListener('click', () => {
+            setAllSectionsCollapsed(true);
+        });
         
         // 模态框点击外部关闭
         document.getElementById('file-modal').addEventListener('click', (e) => {
