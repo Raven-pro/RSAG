@@ -4,6 +4,51 @@ class AdminUtils {
     static loginPath = '/admin/login.html';
     static dashboardPath = '/admin/dashboard.html';
     static memberHomePath = '/admin/news.html';
+    static flashStyleInjected = false;
+
+    static ensureFlashStyle() {
+        if (this.flashStyleInjected) {
+            return;
+        }
+        const styleId = 'admin-flash-highlight-style';
+        if (document.getElementById(styleId)) {
+            this.flashStyleInjected = true;
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            @keyframes adminFlashPulse {
+                0% { background-color: rgba(14, 165, 233, 0.18); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.3); }
+                40% { background-color: rgba(14, 165, 233, 0.26); box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.12); }
+                100% { background-color: transparent; box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+            }
+
+            .admin-flash-highlight {
+                animation: adminFlashPulse 820ms ease-out;
+            }
+        `;
+        document.head.appendChild(style);
+        this.flashStyleInjected = true;
+    }
+
+    static flashElement(target, duration = 900) {
+        if (!target) {
+            return;
+        }
+
+        this.ensureFlashStyle();
+
+        target.classList.remove('admin-flash-highlight');
+        // 强制回流，确保连续触发也会重新播放动画
+        void target.offsetWidth;
+        target.classList.add('admin-flash-highlight');
+
+        window.setTimeout(() => {
+            target.classList.remove('admin-flash-highlight');
+        }, Math.max(200, duration));
+    }
 
     static normalizeRole(role) {
         const value = String(role || '').trim().toLowerCase();

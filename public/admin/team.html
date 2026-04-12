@@ -167,6 +167,8 @@
     <script>
         let currentSearch = '';
         let pendingUploadedAvatar = null;
+        let currentTeamMembers = [];
+        const movingMemberIds = new Set();
 
         async function deleteUploadedFileById(fileId) {
             const id = Number.parseInt(fileId, 10);
@@ -200,36 +202,47 @@
             pendingUploadedAvatar = null;
             void deleteUploadedFileById(stale.id);
         }
-        
-        // 加载团队成员
-        async function loadTeamMembers(search = '') {
-            try {
-                const params = new URLSearchParams({
-                    ...(search && { search })
-                });
-                
-                const response = await AdminUtils.apiRequest(`/team?${params}`);
-                const team = response.team || [];
-                const grid = document.getElementById('team-grid');
-                const loadingPlaceholder = document.getElementById('loading-placeholder');
-                
-                if (loadingPlaceholder) {
-                    loadingPlaceholder.remove();
-                }
-                
-                if (team.length === 0) {
-                    grid.innerHTML = `
-                        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #64748b;">
-                            ${search ? '未找到匹配的成员' : '暂无团队成员'}
-                        </div>
-                    `;
-                    return;
-                }
-                
-                const totalMembers = team.length;
 
-                grid.innerHTML = team.map((member, index) => `
-                    <div class="card">
+        function normalizeMemberId(value) {
+            const id = Number.parseInt(value, 10);
+            return Number.isInteger(id) && id > 0 ? id : null;
+        }
+
+        function flashTeamMembers(memberIds = []) {
+            memberIds.forEach((rawId) => {
+                const memberId = normalizeMemberId(rawId);
+                if (!memberId) return;
+                const element = document.querySelector(`#team-grid [data-member-id="${memberId}"]`);
+                AdminUtils.flashElement(element);
+            });
+        }
+
+        function renderTeamMembers(team = [], search = '') {
+            const grid = document.getElementById('team-grid');
+            const loadingPlaceholder = document.getElementById('loading-placeholder');
+
+            if (loadingPlaceholder) {
+                loadingPlaceholder.remove();
+            }
+
+            if (!Array.isArray(team) || team.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #64748b;">
+                        ${search ? '未找到匹配的成员' : '暂无团队成员'}
+                    </div>
+                `;
+                return;
+            }
+
+            const totalMembers = team.length;
+
+            grid.innerHTML = team.map((member, index) => {
+                const memberId = normalizeMemberId(member.id);
+                const isMoving = memberId !== null && movingMemberIds.has(memberId);
+                const moveButtonBaseStyle = isMoving ? 'opacity:0.6; cursor:wait;' : '';
+
+                return `
+                    <div class="card" data-member-id="${member.id}">
                         <div class="card-body" style="text-align: center;">
                             <div style="margin-bottom: 1rem;">
                                   <img src="${member.photo_url || 'https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'}" 
@@ -251,22 +264,35 @@
                                 </span>
                             </div>
                             <div style="display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: center;">
-                                <button class="btn btn-small btn-secondary" onclick="moveMember(${member.id}, 'up')" ${index === 0 ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+                                <button class="btn btn-small btn-secondary" onclick="moveMember(${member.id}, 'up')" ${index === 0 || isMoving ? `disabled style="${moveButtonBaseStyle}"` : ''}>
                                     ↑ 上移
                                 </button>
-                                <button class="btn btn-small btn-secondary" onclick="moveMember(${member.id}, 'down')" ${index === totalMembers - 1 ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+                                <button class="btn btn-small btn-secondary" onclick="moveMember(${member.id}, 'down')" ${index === totalMembers - 1 || isMoving ? `disabled style="${moveButtonBaseStyle}"` : ''}>
                                     ↓ 下移
                                 </button>
-                                <button class="btn btn-small btn-secondary" onclick="editMember(${member.id})">
+                                <button class="btn btn-small btn-secondary" onclick="editMember(${member.id})" ${isMoving ? `disabled style="${moveButtonBaseStyle}"` : ''}>
                                     编辑
                                 </button>
-                                <button class="btn btn-small btn-danger" onclick="deleteMember(${member.id})">
+                                <button class="btn btn-small btn-danger" onclick="deleteMember(${member.id})" ${isMoving ? `disabled style="${moveButtonBaseStyle}"` : ''}>
                                     删除
                                 </button>
                             </div>
                         </div>
                     </div>
-                `).join('');
+                `;
+            }).join('');
+        }
+        
+        // 加载团队成员
+        async function loadTeamMembers(search = '') {
+            try {
+                const params = new URLSearchParams({
+                    ...(search && { search })
+                });
+                
+                const response = await AdminUtils.apiRequest(`/team?${params}`);
+                currentTeamMembers = Array.isArray(response.team) ? response.team : [];
+                renderTeamMembers(currentTeamMembers, search);
                 
             } catch (error) {
                 console.error('加载团队成员失败:', error);
@@ -279,17 +305,58 @@
                 return;
             }
 
+            const memberId = normalizeMemberId(id);
+            if (!memberId || movingMemberIds.has(memberId)) {
+                return;
+            }
+
+            if (String(currentSearch || '').trim()) {
+                try {
+                    await AdminUtils.apiRequest(`/team/${memberId}/move`, {
+                        method: 'POST',
+                        body: { direction }
+                    });
+                    await loadTeamMembers(currentSearch);
+                    flashTeamMembers([memberId]);
+                } catch (error) {
+                    console.error('调整成员顺序失败:', error);
+                    AdminUtils.showNotification(error.message || '调整失败，请稍后重试', 'error');
+                }
+                return;
+            }
+
+            const currentIndex = currentTeamMembers.findIndex((item) => normalizeMemberId(item.id) === memberId);
+            if (currentIndex < 0) return;
+
+            const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+            if (targetIndex < 0 || targetIndex >= currentTeamMembers.length) return;
+
+            const targetMemberId = normalizeMemberId(currentTeamMembers[targetIndex]?.id);
+
+            const snapshot = currentTeamMembers.map((member) => ({ ...member }));
+            const swapped = currentTeamMembers.map((member) => ({ ...member }));
+            [swapped[currentIndex], swapped[targetIndex]] = [swapped[targetIndex], swapped[currentIndex]];
+            currentTeamMembers = swapped.map((member, index) => ({
+                ...member,
+                order_index: index + 1
+            }));
+
+            movingMemberIds.add(memberId);
+            renderTeamMembers(currentTeamMembers, currentSearch);
+            flashTeamMembers([memberId, targetMemberId]);
+
             try {
-                const result = await AdminUtils.apiRequest(`/team/${id}/move`, {
+                await AdminUtils.apiRequest(`/team/${memberId}/move`, {
                     method: 'POST',
                     body: { direction }
                 });
-
-                AdminUtils.showNotification(result.message || '顺序调整成功', 'success');
-                loadTeamMembers(currentSearch);
             } catch (error) {
+                currentTeamMembers = snapshot;
                 console.error('调整成员顺序失败:', error);
                 AdminUtils.showNotification(error.message || '调整失败，请稍后重试', 'error');
+            } finally {
+                movingMemberIds.delete(memberId);
+                renderTeamMembers(currentTeamMembers, currentSearch);
             }
         }
         
@@ -451,10 +518,12 @@
                 const url = isEdit ? `/team/${id}` : '/team';
                 const method = isEdit ? 'PUT' : 'POST';
                 
-                await AdminUtils.apiRequest(url, {
+                const result = await AdminUtils.apiRequest(url, {
                     method,
                     body: data
                 });
+
+                const savedMemberId = isEdit ? normalizeMemberId(id) : normalizeMemberId(result?.id);
 
                 if (keepPendingUploadedAvatar) {
                     clearPendingUploadedAvatar();
@@ -466,7 +535,8 @@
                 );
                 
                 hideModal();
-                loadTeamMembers(currentSearch);
+                await loadTeamMembers(currentSearch);
+                flashTeamMembers([savedMemberId]);
                 
             } catch (error) {
                 console.error('保存成员失败:', error);

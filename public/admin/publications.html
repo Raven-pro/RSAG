@@ -417,9 +417,18 @@
                 </div>
             `;
         }
+
+        function flashPublicationRows(publicationIds = []) {
+            publicationIds.forEach((rawId) => {
+                const id = Number.parseInt(rawId, 10);
+                if (!Number.isInteger(id) || id <= 0) return;
+                const row = document.querySelector(`#publications-tbody tr[data-publication-id="${id}"]`);
+                AdminUtils.flashElement(row);
+            });
+        }
         
         // 加载论文列表
-        async function loadPublications(page = 1, search = '', type = '', status = '') {
+        async function loadPublications(page = 1, search = '', type = '', status = '', highlightPublicationIds = []) {
             try {
                 const params = new URLSearchParams({
                     page: page.toString(),
@@ -448,7 +457,7 @@
                 }
                 
                 tbody.innerHTML = publications.map(pub => `
-                    <tr>
+                    <tr data-publication-id="${pub.id}">
                         ${isAdmin ? `<td><input type="checkbox" class="publication-row-select" data-id="${pub.id}"></td>` : ''}
                         <td>
                             <div style="font-weight: 500; line-height: 1.4;">${pub.title}</div>
@@ -480,6 +489,7 @@
                     </tr>
                 `).join('');
                 resetPublicationSelection();
+                flashPublicationRows(highlightPublicationIds);
                 
                 // 更新分页
                 const paginationContainer = document.getElementById('pagination-container');
@@ -701,7 +711,8 @@
                 const absoluteUrl = `${window.location.origin}${frontendUrl}`;
 
                 hideModal();
-                await loadPublications(currentPage, currentSearch, currentType, currentStatus);
+                const highlightPublicationIds = !isEdit ? [result?.id] : [];
+                await loadPublications(currentPage, currentSearch, currentType, currentStatus, highlightPublicationIds);
                 AdminUtils.showNotification(successMessage, 'success');
 
                 if (!isEdit) {
