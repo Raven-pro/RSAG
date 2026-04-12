@@ -110,7 +110,7 @@
             <!-- 文件列表 -->
             <div class="card">
                 <div class="card-body">
-                    <div id="files-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">
+                    <div id="files-sections" style="display: flex; flex-direction: column; gap: 1rem;">
                         <!-- 加载状态 -->
                         <div id="loading-placeholder" style="grid-column: 1 / -1; text-align: center; padding: 2rem;">
                             <div class="spinner" style="margin: 0 auto 1rem;"></div>
@@ -154,94 +154,217 @@
             fileIds.forEach((rawId) => {
                 const id = Number.parseInt(rawId, 10);
                 if (!Number.isInteger(id) || id <= 0) return;
-                const card = document.querySelector(`#files-grid [data-file-id="${id}"]`);
-                AdminUtils.flashElement(card);
+                const cards = document.querySelectorAll(`#files-sections [data-file-id="${id}"]`);
+                cards.forEach((card) => AdminUtils.flashElement(card));
             });
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function summarizeReferenceLocations(references = []) {
+            const counter = new Map();
+            references.forEach((item) => {
+                const label = String(item?.location_label || item?.field_name || '引用位置').trim();
+                if (!label) return;
+                counter.set(label, (counter.get(label) || 0) + 1);
+            });
+
+            return Array.from(counter.entries())
+                .map(([label, count]) => `${escapeHtml(label)} x${count}`)
+                .join('，');
+        }
+
+        function renderFileReferenceSummary(file) {
+            const groups = file?.reference_groups || {};
+            const sections = [
+                { key: 'news', label: '新闻' },
+                { key: 'team_members', label: '成员' },
+                { key: 'publications', label: '论文' }
+            ];
+
+            const total = Number(file?.reference_breakdown?.total || file?.reference_count || 0);
+            if (!Number.isFinite(total) || total <= 0) {
+                return '<div style="margin-top:0.55rem; font-size:0.72rem; color:#94a3b8; border-top:1px dashed #e2e8f0; padding-top:0.45rem;">未被新闻/成员/论文引用</div>';
+            }
+
+            const lines = sections.map((section) => {
+                const refs = Array.isArray(groups[section.key]) ? groups[section.key] : [];
+                if (!refs.length) {
+                    return `<div><span style="color:#334155;">${section.label}：</span><span style="color:#94a3b8;">无</span></div>`;
+                }
+                const locationSummary = summarizeReferenceLocations(refs);
+                return `<div><span style="color:#334155;">${section.label}：</span>${locationSummary}</div>`;
+            }).join('');
+
+            return `
+                <div style="margin-top:0.55rem; font-size:0.72rem; color:#475569; border-top:1px dashed #e2e8f0; padding-top:0.45rem; line-height:1.45;">
+                    ${lines}
+                </div>
+            `;
+        }
+
+        function renderReferenceGroupSection(title, refs = []) {
+            if (!Array.isArray(refs) || refs.length === 0) {
+                return `
+                    <div style="margin-top:0.8rem;">
+                        <div style="font-weight:600; color:#334155; margin-bottom:0.35rem;">${title}</div>
+                        <div style="color:#94a3b8; font-size:0.82rem;">暂无引用</div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div style="margin-top:0.8rem;">
+                    <div style="font-weight:600; color:#334155; margin-bottom:0.35rem;">${title}（${refs.length}）</div>
+                    <ul style="margin:0; padding-left:1.1rem; color:#475569; font-size:0.84rem; line-height:1.55;">
+                        ${refs.map((ref) => {
+                            const name = escapeHtml(ref.entity_name || '未命名记录');
+                            const location = escapeHtml(ref.location_label || ref.field_name || '引用位置');
+                            const adminLink = ref.entity_admin_url
+                                ? `<a href="${ref.entity_admin_url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb; text-decoration:underline; margin-left:0.4rem;">后台</a>`
+                                : '';
+                            const frontLink = ref.entity_front_url
+                                ? `<a href="${ref.entity_front_url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb; text-decoration:underline; margin-left:0.4rem;">前台</a>`
+                                : '';
+
+                            return `<li><span>${name}</span><span style="color:#64748b;"> · ${location}</span>${adminLink}${frontLink}</li>`;
+                        }).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        function renderFileReferenceDetails(file) {
+            const groups = file?.reference_groups || {};
+            const total = Number(file?.reference_breakdown?.total || file?.reference_count || 0);
+
+            if (!Number.isFinite(total) || total <= 0) {
+                return `
+                    <div style="margin-top:1.2rem; border-top:1px solid #e2e8f0; padding-top:1rem;">
+                        <h4 style="margin:0 0 0.6rem 0; color:#1e293b;">引用位置</h4>
+                        <div style="color:#94a3b8; font-size:0.85rem;">该文件当前未被新闻、成员或论文引用。</div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div style="margin-top:1.2rem; border-top:1px solid #e2e8f0; padding-top:1rem;">
+                    <h4 style="margin:0; color:#1e293b;">引用位置</h4>
+                    ${renderReferenceGroupSection('新闻', groups.news || [])}
+                    ${renderReferenceGroupSection('成员', groups.team_members || [])}
+                    ${renderReferenceGroupSection('论文', groups.publications || [])}
+                </div>
+            `;
+        }
+
+        function renderFileCard(file) {
+            return `
+                <div class="card" data-file-id="${file.id}" style="cursor: pointer;" onclick="viewFile(${file.id})">
+                    <div style="aspect-ratio: 1; overflow: hidden; border-radius: 8px 8px 0 0; background: #f1f5f9; display: flex; align-items: center; justify-content: center;">
+                        ${file.file_type.startsWith('image/')
+                            ? `<img src="${file.file_url}" alt="${file.original_name}" style="width: 100%; height: 100%; object-fit: cover;">`
+                            : `<div style="font-size: 3rem;">${getFileIcon(file.file_type)}</div>`
+                        }
+                    </div>
+                    <div class="card-body" style="padding: 1rem;">
+                        <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; font-weight: 500; color: #1e293b; word-break: break-all;">
+                            ${file.original_name.length > 25 ? file.original_name.substring(0, 25) + '...' : file.original_name}
+                        </h4>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #64748b;">
+                            <span>${formatFileSize(file.file_size)}</span>
+                            <span>${AdminUtils.formatDate(file.created_at)}</span>
+                        </div>
+                        <div style="margin-top: 0.5rem;">
+                            <span class="status-badge status-success" style="font-size: 0.65rem;">
+                                ${getFileTypeText(file.file_type)}
+                            </span>
+                            ${file.lifecycle_status === 'pending_delete' ? '<span class="status-badge status-warning" style="font-size:0.65rem; margin-left:0.35rem;">回收站</span>' : ''}
+                            ${file.is_orphan ? '<span class="status-badge status-error" style="font-size:0.65rem; margin-left:0.35rem;">孤儿</span>' : ''}
+                        </div>
+                        ${renderFileReferenceSummary(file)}
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                            <button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); copyFileUrl('${file.file_url}')">
+                                复制链接
+                            </button>
+                            ${file.lifecycle_status === 'pending_delete'
+                                ? `<button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); restoreFile(${file.id})">恢复</button>
+                                   <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); hardDeleteFile(${file.id})">彻底删除</button>`
+                                : `<button class="btn btn-small btn-danger" onclick="event.stopPropagation(); deleteFile(${file.id})">移入回收站</button>`
+                            }
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFileSection(sectionTitle, files = [], emptyText = '暂无文件') {
+            return `
+                <div class="card">
+                    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="margin:0; font-size:1rem;">${sectionTitle}</h3>
+                        <span class="status-badge status-info">${files.length}</span>
+                    </div>
+                    <div class="card-body">
+                        ${files.length > 0
+                            ? `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">${files.map((file) => renderFileCard(file)).join('')}</div>`
+                            : `<div style="text-align:center; color:#94a3b8; padding:1rem 0;">${emptyText}</div>`
+                        }
+                    </div>
+                </div>
+            `;
         }
         
         // 加载文件列表
         async function loadFiles(page = 1, search = '', type = '', status = 'active', highlightFileIds = []) {
             try {
                 const params = new URLSearchParams({
-                    page: page.toString(),
-                    limit: '12',
+                    grouped: '1',
                     ...(search && { search }),
                     ...(type && { type }),
                     ...(status && { status })
                 });
                 
                 const response = await AdminUtils.apiRequest(`/files?${params}`);
-                const files = response.files || [];
-                const grid = document.getElementById('files-grid');
+                const sectionsContainer = document.getElementById('files-sections');
                 const loadingPlaceholder = document.getElementById('loading-placeholder');
                 
                 if (loadingPlaceholder) {
                     loadingPlaceholder.remove();
                 }
+
+                const sections = response.sections || {};
+                const newsFiles = Array.isArray(sections.news) ? sections.news : [];
+                const teamFiles = Array.isArray(sections.team_members) ? sections.team_members : [];
+                const publicationFiles = Array.isArray(sections.publications) ? sections.publications : [];
+                const unreferencedFiles = Array.isArray(sections.unreferenced) ? sections.unreferenced : [];
+
+                const totalShown = newsFiles.length + teamFiles.length + publicationFiles.length + unreferencedFiles.length;
                 
-                if (files.length === 0) {
-                    grid.innerHTML = `
-                        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #64748b;">
-                            ${search || type ? '未找到匹配的文件' : '暂无文件'}
+                if (totalShown === 0) {
+                    sectionsContainer.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: #64748b;">
+                            ${(search || type || status !== 'active') ? '未找到匹配的文件' : '暂无文件'}
                         </div>
                     `;
+                    document.getElementById('pagination-container').innerHTML = '';
                     return;
                 }
-                
-                grid.innerHTML = files.map(file => `
-                    <div class="card" data-file-id="${file.id}" style="cursor: pointer;" onclick="viewFile(${file.id})">
-                        <div style="aspect-ratio: 1; overflow: hidden; border-radius: 8px 8px 0 0; background: #f1f5f9; display: flex; align-items: center; justify-content: center;">
-                            ${file.file_type.startsWith('image/') ? 
-                                `<img src="${file.file_url}" alt="${file.original_name}" style="width: 100%; height: 100%; object-fit: cover;">` :
-                                `<div style="font-size: 3rem;">${getFileIcon(file.file_type)}</div>`
-                            }
-                        </div>
-                        <div class="card-body" style="padding: 1rem;">
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; font-weight: 500; color: #1e293b; word-break: break-all;">
-                                ${file.original_name.length > 25 ? file.original_name.substring(0, 25) + '...' : file.original_name}
-                            </h4>
-                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #64748b;">
-                                <span>${formatFileSize(file.file_size)}</span>
-                                <span>${AdminUtils.formatDate(file.created_at)}</span>
-                            </div>
-                            <div style="margin-top: 0.5rem;">
-                                <span class="status-badge status-success" style="font-size: 0.65rem;">
-                                    ${getFileTypeText(file.file_type)}
-                                </span>
-                                ${file.lifecycle_status === 'pending_delete' ? '<span class="status-badge status-warning" style="font-size:0.65rem; margin-left:0.35rem;">回收站</span>' : ''}
-                                ${file.is_orphan ? '<span class="status-badge status-error" style="font-size:0.65rem; margin-left:0.35rem;">孤儿</span>' : ''}
-                            </div>
-                            <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-                                <button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); copyFileUrl('${file.file_url}')">
-                                    复制链接
-                                </button>
-                                ${file.lifecycle_status === 'pending_delete'
-                                    ? `<button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); restoreFile(${file.id})">恢复</button>
-                                       <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); hardDeleteFile(${file.id})">彻底删除</button>`
-                                    : `<button class="btn btn-small btn-danger" onclick="event.stopPropagation(); deleteFile(${file.id})">移入回收站</button>`
-                                }
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+
+                sectionsContainer.innerHTML = `
+                    ${renderFileSection('新闻引用区', newsFiles, '暂无被新闻引用的文件')}
+                    ${renderFileSection('成员引用区', teamFiles, '暂无被成员引用的文件')}
+                    ${renderFileSection('论文引用区', publicationFiles, '暂无被论文引用的文件')}
+                    ${renderFileSection('未引用 / 其他', unreferencedFiles, '暂无未引用文件')}
+                `;
                 flashFileCards(highlightFileIds);
-                
-                // 更新分页
-                const paginationContainer = document.getElementById('pagination-container');
-                if (response.totalPages > 1) {
-                    const pagination = AdminUtils.createPagination(
-                        response.currentPage,
-                        response.totalPages,
-                        (page) => {
-                            currentPage = page;
-                            loadFiles(page, currentSearch, currentType, currentStatus);
-                        }
-                    );
-                    paginationContainer.innerHTML = '';
-                    paginationContainer.appendChild(pagination);
-                } else {
-                    paginationContainer.innerHTML = '';
-                }
+                document.getElementById('pagination-container').innerHTML = '';
                 
             } catch (error) {
                 console.error('加载文件列表失败:', error);
@@ -404,6 +527,7 @@
                         </div>
                         ${file.deleted_at ? `<div><strong>删除时间:</strong> ${AdminUtils.formatDate(file.deleted_at)}</div>` : ''}
                         ${file.deleted_by ? `<div><strong>删除人:</strong> ${file.deleted_by}</div>` : ''}
+                        ${renderFileReferenceDetails(file)}
                         <div style="margin-top: 1.5rem;">
                             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">文件链接:</label>
                             <div style="display: flex; gap: 0.5rem;">

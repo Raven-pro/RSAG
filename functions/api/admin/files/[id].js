@@ -1,5 +1,6 @@
 import { authenticate, isAdminUser, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
 import { resolveUploadsBucket } from '../file-utils.js';
+import { enrichFilesWithReferences } from './reference-resolver.js';
 
 function parseBooleanFlag(value) {
     const text = String(value || '').trim().toLowerCase();
@@ -34,6 +35,8 @@ export async function onRequestGet(context) {
         if (!file) {
             return createErrorResponse('文件不存在', 404);
         }
+
+        await enrichFilesWithReferences(db, [file]);
 
         return createResponse(file);
     } catch (error) {

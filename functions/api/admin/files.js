@@ -1,4 +1,5 @@
 import { authenticate, requireAdmin, createResponse, createErrorResponse, initDatabase } from './utils.js';
+import { enrichFilesWithReferences } from './files/reference-resolver.js';
 
 function parsePositiveInt(value, fallback) {
     const parsed = Number.parseInt(value || '', 10);
@@ -11,6 +12,47 @@ function normalizeStatusFilter(value) {
         return status;
     }
     return 'active';
+}
+
+function parseBooleanFlag(value) {
+    const text = String(value || '').trim().toLowerCase();
+    return ['1', 'true', 'yes', 'y', 'on'].includes(text);
+}
+
+function buildReferenceSections(files = []) {
+    const sections = {
+        news: [],
+        team_members: [],
+        publications: [],
+        unreferenced: []
+    };
+
+    for (const file of files) {
+        const groups = file?.reference_groups || {};
+        const newsRefs = Array.isArray(groups.news) ? groups.news : [];
+        const teamRefs = Array.isArray(groups.team_members) ? groups.team_members : [];
+        const publicationRefs = Array.isArray(groups.publications) ? groups.publications : [];
+
+        let placed = false;
+        if (newsRefs.length > 0) {
+            sections.news.push(file);
+            placed = true;
+        }
+        if (teamRefs.length > 0) {
+            sections.team_members.push(file);
+            placed = true;
+        }
+        if (publicationRefs.length > 0) {
+            sections.publications.push(file);
+            placed = true;
+        }
+
+        if (!placed) {
+            sections.unreferenced.push(file);
+        }
+    }
+
+    return sections;
 }
 
 // GET /api/admin/files
@@ -27,6 +69,7 @@ export async function onRequestGet(context) {
         const search = (url.searchParams.get('search') || '').trim();
         const type = (url.searchParams.get('type') || '').trim().toLowerCase();
         const status = normalizeStatusFilter(url.searchParams.get('status'));
+        const grouped = parseBooleanFlag(url.searchParams.get('grouped'));
 
         const db = env.DB;
         await initDatabase(db);
@@ -78,7 +121,7 @@ export async function onRequestGet(context) {
         const currentPage = Math.min(Math.max(page, 1), totalPages);
         const offset = (currentPage - 1) * limit;
 
-        const filesResult = await db.prepare(`
+        const pagedSql = `
             SELECT
                 id, filename, original_name, file_url, file_type, file_size, category,
                 uploaded_by, lifecycle_status, reference_count, is_orphan, deleted_at, deleted_by,
@@ -90,10 +133,44 @@ export async function onRequestGet(context) {
                 created_at DESC,
                 id DESC
             LIMIT ? OFFSET ?
-        `).bind(...params, limit, offset).all();
+        `;
+
+        const groupedSql = `
+            SELECT
+                id, filename, original_name, file_url, file_type, file_size, category,
+                uploaded_by, lifecycle_status, reference_count, is_orphan, deleted_at, deleted_by,
+                created_at, updated_at
+            FROM files
+            ${whereSql}
+            ORDER BY
+                CASE WHEN lifecycle_status = 'pending_delete' THEN 1 ELSE 0 END ASC,
+                created_at DESC,
+                id DESC
+        `;
+
+        const filesResult = grouped
+            ? await db.prepare(groupedSql).bind(...params).all()
+            : await db.prepare(pagedSql).bind(...params, limit, offset).all();
+
+        const files = filesResult.results || [];
+        await enrichFilesWithReferences(db, files);
+
+        if (grouped) {
+            return createResponse({
+                grouped: true,
+                files,
+                sections: buildReferenceSections(files),
+                total,
+                filters: {
+                    search,
+                    type,
+                    status
+                }
+            });
+        }
 
         return createResponse({
-            files: filesResult.results || [],
+            files,
             totalPages,
             currentPage,
             filters: {
