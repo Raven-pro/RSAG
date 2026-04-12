@@ -351,12 +351,12 @@
             };
         }
 
-        function buildSeriesPoints(values, leftPad, topPad, innerWidth, innerHeight, maxValue) {
+        function buildSeriesPoints(values, xPositions, topPad, innerHeight, maxValue) {
             if (!values.length) return [];
             return values.map((value, index) => {
-                const x = values.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (values.length - 1);
+                const x = Number(xPositions?.[index]);
                 const y = topPad + innerHeight - ((Number(value) || 0) / maxValue) * innerHeight;
-                return { x, y, value: Number(value) || 0, index };
+                return { x: Number.isFinite(x) ? x : 0, y, value: Number(value) || 0, index };
             });
         }
 
@@ -428,24 +428,34 @@
             const maxValue = Math.max(1, ...allValues);
 
             const width = 920;
-            const height = 300;
-            const leftPad = 42;
-            const rightPad = 14;
+            const height = 320;
+            const leftPad = 48;
+            const rightPad = 24;
             const topPad = 16;
-            const bottomPad = 18;
-            const innerWidth = width - leftPad - rightPad;
+            const labelStep = dates.length > 90 ? 14 : dates.length > 45 ? 7 : dates.length > 20 ? 3 : 1;
+            const shouldRotate = mode === 'day' && dates.length > 18;
+            const rotation = shouldRotate ? -40 : 0;
+            const bottomPad = shouldRotate ? 62 : 34;
+
+            const plotWidth = width - leftPad - rightPad;
+            const slotWidth = dates.length > 1 ? plotWidth / (dates.length - 1) : plotWidth;
+            const groupWidth = Math.min(42, Math.max(14, slotWidth * 0.72));
+            const xStart = leftPad + groupWidth / 2;
+            const xEnd = width - rightPad - groupWidth / 2;
+            const innerWidth = Math.max(1, xEnd - xStart);
             const innerHeight = height - topPad - bottomPad;
             const xPositions = dates.map((_, index) => (
-                dates.length === 1 ? leftPad + innerWidth / 2 : leftPad + (index * innerWidth) / (dates.length - 1)
+                dates.length === 1 ? (xStart + xEnd) / 2 : xStart + (index * innerWidth) / (dates.length - 1)
             ));
-            const groupWidth = Math.min(44, (innerWidth / Math.max(dates.length, 2)) * 0.78);
             const activeCount = Math.max(1, visibleSeries.length);
             const barGap = 2;
             const barWidth = Math.max(4, (groupWidth - barGap * (activeCount - 1)) / activeCount);
+            const yStep = Math.max(1, Math.ceil(maxValue / 4));
+            const axisMax = yStep * 4;
 
             const yGrid = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
                 const y = topPad + innerHeight * ratio;
-                const labelValue = Math.round(maxValue * (1 - ratio));
+                const labelValue = Math.round(axisMax * (1 - ratio));
                 return `
                     <line x1="${leftPad}" y1="${y}" x2="${width - rightPad}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="3 3" />
                     <text x="${leftPad - 8}" y="${y + 4}" font-size="11" fill="#94a3b8" text-anchor="end">${labelValue}</text>
@@ -462,7 +472,7 @@
                 const startX = centerX - groupWidth / 2;
                 return visibleSeries.map((item, seriesIndex) => {
                     const rawValue = Number(item.values[index]) || 0;
-                    const barHeight = maxValue > 0 ? (rawValue / maxValue) * innerHeight : 0;
+                    const barHeight = axisMax > 0 ? (rawValue / axisMax) * innerHeight : 0;
                     const renderedHeight = barHeight > 0 ? Math.max(1, barHeight) : 0;
                     const barX = startX + seriesIndex * (barWidth + barGap);
                     const barY = topPad + innerHeight - renderedHeight;
@@ -475,7 +485,7 @@
             }).join('');
 
             const lineMarkup = visibleSeries.map((item) => {
-                const points = buildSeriesPoints(item.movingAvg, leftPad, topPad, innerWidth, innerHeight, maxValue);
+                const points = buildSeriesPoints(item.movingAvg, xPositions, topPad, innerHeight, axisMax);
                 const path = buildLinePath(points);
                 return `
                     <path d="${path}" fill="none" stroke="${item.lineColor}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
@@ -493,7 +503,7 @@
                     return '';
                 }
                 const x = xPositions[peakIndex];
-                const y = topPad + innerHeight - (peakValue / maxValue) * innerHeight;
+                const y = topPad + innerHeight - (peakValue / axisMax) * innerHeight;
                 const labelY = Math.max(topPad + 10, y - 10);
                 return `
                     <circle cx="${x}" cy="${y}" r="4.2" fill="#ffffff" stroke="${item.lineColor}" stroke-width="2">
@@ -503,18 +513,16 @@
                 `;
             }).join('');
 
-            const labelStep = dates.length > 90 ? 14 : dates.length > 45 ? 7 : dates.length > 20 ? 3 : 1;
-            const shouldRotate = mode === 'day' && dates.length > 18;
-            const rotation = shouldRotate ? -55 : 0;
-            const tickLayerHeight = shouldRotate ? 70 : 32;
-
-            const xTickLabels = dates.map((date, index) => {
+            const xAxisLabels = dates.map((date, index) => {
                 if (index % labelStep !== 0 && index !== dates.length - 1) {
                     return '';
                 }
                 const x = xPositions[index];
-                const leftPercent = (x / width) * 100;
-                return `<span style="position:absolute; left:${leftPercent}%; top:0; transform:translateX(-50%) rotate(${rotation}deg); transform-origin: top center; font-size:12px; font-weight:500; color:#64748b; white-space:nowrap; line-height:1;">${formatBucketLabel(date, mode)}</span>`;
+                const y = height - 9;
+                if (shouldRotate) {
+                    return `<text x="${x}" y="${y}" font-size="11" font-weight="500" fill="#64748b" text-anchor="end" transform="rotate(${rotation} ${x} ${y})">${formatBucketLabel(date, mode)}</text>`;
+                }
+                return `<text x="${x}" y="${y}" font-size="11" font-weight="500" fill="#64748b" text-anchor="middle">${formatBucketLabel(date, mode)}</text>`;
             }).join('');
 
             const legendMarkup = series.map((item) => {
@@ -543,17 +551,15 @@
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:12px; padding:0.5rem; background:#ffffff; overflow-x:auto;">
                     <div style="min-width:760px;">
-                        <svg viewBox="0 0 ${width} ${height}" style="width:100%; display:block;" role="img" aria-label="运营趋势折线图">
+                        <svg viewBox="0 0 ${width} ${height}" style="width:100%; display:block;" role="img" aria-label="运营趋势组合图">
                             <desc>${desc}</desc>
                             ${yGrid}
                             ${xGrid}
                             ${barsMarkup}
                             ${lineMarkup}
                             ${peakMarkup}
+                            ${xAxisLabels}
                         </svg>
-                        <div style="position:relative; width:100%; height:${tickLayerHeight}px; margin-top:2px;">
-                            ${xTickLabels}
-                        </div>
                     </div>
                 </div>
                 ${emptyHint}

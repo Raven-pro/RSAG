@@ -378,7 +378,7 @@
         // --- Mobile Menu Toggle Logic ---
         const menuButton = document.getElementById('menu-button');
         const mobileMenu = document.getElementById('mobile-menu');
-        const navLinks = document.querySelectorAll('#mobile-menu a'); // Corrected selector
+        const mobileNavLinks = document.querySelectorAll('#mobile-menu a');
         if (menuButton && mobileMenu) { // Add null checks
             menuButton.addEventListener('click', () => {
                 mobileMenu.classList.toggle('hidden');
@@ -389,28 +389,30 @@
                 }
             });
         }
-        navLinks.forEach(link => {
+
+        const allNavLinks = document.querySelectorAll('#navbar-links a[data-target], #mobile-menu a[data-target]');
+        allNavLinks.forEach((link) => {
             link.addEventListener('click', (e) => {
-                // 专业平滑滚动：阻止默认跳转（包括 /index.html），根据 data-target 平滑滚动且不改变URL
-                const targetSel = link.getAttribute('data-target');
-                if (targetSel) {
+                const targetSel = link.getAttribute('data-target') || link.getAttribute('href');
+                if (targetSel && targetSel.startsWith('#')) {
                     e.preventDefault();
                     const targetEl = document.querySelector(targetSel);
                     if (targetEl) {
                         targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
-                    // 清理可能存在的 hash
-                    if (window.location.hash) {
-                        history.replaceState(null, document.title, '/index.html');
-                    }
+                    const cleanUrl = `${window.location.pathname}${window.location.search}`;
+                    history.replaceState(null, document.title, cleanUrl);
                 }
-                if (mobileMenu) mobileMenu.classList.add('hidden'); // Hide menu
-                if (menuButton) { // Check if menuButton exists
-                     const icon = menuButton.querySelector('i');
-                     if (icon) { // Check if icon exists
-                        icon.setAttribute('data-lucide', 'menu'); // Reset icon
+
+                if (mobileMenu && mobileNavLinks.length) {
+                    mobileMenu.classList.add('hidden');
+                }
+                if (menuButton) {
+                    const icon = menuButton.querySelector('i');
+                    if (icon) {
+                        icon.setAttribute('data-lucide', 'menu');
                         lucide.createIcons();
-                     }
+                    }
                 }
             });
         });
@@ -576,7 +578,8 @@
             if (initialEl) {
                 initialEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-            history.replaceState(null, document.title, '/index.html');
+            const cleanUrl = `${window.location.pathname}${window.location.search}`;
+            history.replaceState(null, document.title, cleanUrl);
         }
 
         // --- 管理员功能 ---
