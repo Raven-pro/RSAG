@@ -712,6 +712,25 @@
                                 <button class="btn btn-secondary" onclick="copyFileUrl('${file.file_url}')">复制</button>
                             </div>
                         </div>
+                        ${String(file.file_type || '').startsWith('image/') ? `
+                            <div style="margin-top: 0.9rem;">
+                                <label style="display:block; margin-bottom:0.45rem; font-weight:500;">快速绑定:</label>
+                                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                    <button class="btn btn-small btn-secondary" onclick="bindFileToNews('${file.file_url}')">用于新闻封面</button>
+                                    <button class="btn btn-small btn-secondary" onclick="bindFileToTeam('${file.file_url}')">用于成员头像</button>
+                                </div>
+                                <div style="margin-top:0.35rem; color:#64748b; font-size:0.78rem;">跳转后保存对应记录，即可建立引用关系。</div>
+                            </div>
+                        ` : ''}
+                        ${(String(file.file_type || '').toLowerCase().includes('pdf') || String(file.category || '').toLowerCase() === 'pdf') ? `
+                            <div style="margin-top: 0.9rem;">
+                                <label style="display:block; margin-bottom:0.45rem; font-weight:500;">快速绑定:</label>
+                                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                    <button class="btn btn-small btn-secondary" onclick="bindFileToPublication('${file.file_url}')">绑定到论文PDF</button>
+                                </div>
+                                <div style="margin-top:0.35rem; color:#64748b; font-size:0.78rem;">跳转到论文页后，点击对应论文的“绑定此PDF”。</div>
+                            </div>
+                        ` : ''}
                         ${file.lifecycle_status === 'pending_delete' ? `
                             <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
                                 <button class="btn btn-secondary" onclick="restoreFile(${file.id})">恢复此文件</button>
@@ -736,6 +755,36 @@
             }).catch(() => {
                 AdminUtils.showNotification('复制失败，请手动复制', 'error');
             });
+        }
+
+        function buildQuickBindUrl(pathname, query = {}) {
+            const params = new URLSearchParams(query);
+            const queryText = params.toString();
+            return queryText ? `${pathname}?${queryText}` : pathname;
+        }
+
+        function bindFileToNews(fileUrl) {
+            const target = buildQuickBindUrl('/admin/news.html', {
+                action: 'add',
+                featured_image: String(fileUrl || '').trim()
+            });
+            window.location.href = target;
+        }
+
+        function bindFileToTeam(fileUrl) {
+            const target = buildQuickBindUrl('/admin/team.html', {
+                action: 'add',
+                photo_url: String(fileUrl || '').trim()
+            });
+            window.location.href = target;
+        }
+
+        function bindFileToPublication(fileUrl) {
+            const target = buildQuickBindUrl('/admin/publications.html', {
+                action: 'bind_pdf',
+                file_url: String(fileUrl || '').trim()
+            });
+            window.location.href = target;
         }
         
         // 删除文件

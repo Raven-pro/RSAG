@@ -46,6 +46,7 @@
                 <div style="margin-top: 0.6rem; color: #64748b; font-size: 0.9rem;">
                     当前策略：成员可提交/编辑本人论文，系统会自动进入“待审核”；管理员负责批量审核与发布。
                 </div>
+                <div id="pdf-bind-banner" style="display:none; margin-top:0.75rem; border:1px solid #c7d2fe; background:#eef2ff; color:#1e3a8a; border-radius:8px; padding:0.7rem 0.8rem;"></div>
             </div>
 
             <!-- 工具栏 -->
@@ -237,6 +238,7 @@
         const workflowStatuses = ['draft', 'pending_review', 'published', 'scheduled'];
         const currentUser = AdminUtils.getCurrentUser();
         const isAdmin = AdminUtils.isAdmin();
+        let pendingBindPdfUrl = '';
 
         function getTableColumnSpan() {
             return isAdmin ? 7 : 6;
@@ -302,6 +304,77 @@
             if (search) {
                 currentSearch = search;
                 document.getElementById('search-input').value = search;
+            }
+
+            if (String(params.get('action') || '').trim() === 'bind_pdf') {
+                pendingBindPdfUrl = String(params.get('file_url') || '').trim();
+            }
+        }
+
+        function renderPdfBindBanner() {
+            const banner = document.getElementById('pdf-bind-banner');
+            if (!banner) return;
+
+            if (!pendingBindPdfUrl) {
+                banner.style.display = 'none';
+                banner.innerHTML = '';
+                return;
+            }
+
+            const shortUrl = pendingBindPdfUrl.length > 110
+                ? `${pendingBindPdfUrl.slice(0, 106)}...`
+                : pendingBindPdfUrl;
+
+            banner.style.display = 'block';
+            banner.innerHTML = `
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-weight:600; margin-bottom:0.25rem;">已进入 PDF 绑定模式</div>
+                        <div style="font-size:0.82rem; color:#334155; word-break:break-all;">当前文件: ${shortUrl}</div>
+                        <div style="font-size:0.8rem; color:#475569; margin-top:0.22rem;">请在下方目标论文点击“绑定此PDF”。</div>
+                    </div>
+                    <button class="btn btn-small btn-secondary" type="button" onclick="clearPendingPdfBinding()">退出绑定模式</button>
+                </div>
+            `;
+        }
+
+        function cleanupPdfBindQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            params.delete('action');
+            params.delete('file_url');
+            const queryText = params.toString();
+            const cleanUrl = queryText ? `${window.location.pathname}?${queryText}` : window.location.pathname;
+            history.replaceState(null, document.title, cleanUrl);
+        }
+
+        function clearPendingPdfBinding() {
+            pendingBindPdfUrl = '';
+            renderPdfBindBanner();
+            cleanupPdfBindQueryParams();
+            loadPublications(currentPage, currentSearch, currentType, currentStatus);
+        }
+
+        async function bindPendingPdfToPublication(id) {
+            const publicationId = Number.parseInt(id, 10);
+            if (!Number.isInteger(publicationId) || publicationId <= 0) {
+                AdminUtils.showNotification('无效的论文 ID', 'error');
+                return;
+            }
+            if (!pendingBindPdfUrl) {
+                AdminUtils.showNotification('当前没有待绑定 PDF', 'error');
+                return;
+            }
+
+            try {
+                await AdminUtils.bindPublicationPdfFromUrl(publicationId, pendingBindPdfUrl);
+                AdminUtils.showNotification('PDF 绑定成功', 'success');
+                pendingBindPdfUrl = '';
+                renderPdfBindBanner();
+                cleanupPdfBindQueryParams();
+                await loadPublications(currentPage, currentSearch, currentType, currentStatus, [publicationId]);
+            } catch (error) {
+                console.error('绑定论文PDF失败:', error);
+                AdminUtils.showNotification(error.message || '绑定失败，请稍后重试', 'error');
             }
         }
 
@@ -479,6 +552,7 @@
                                     <button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">
                                         编辑
                                     </button>
+                                    ${pendingBindPdfUrl ? `<button class="btn btn-small btn-primary" onclick="bindPendingPdfToPublication(${pub.id})">绑定此PDF</button>` : ''}
                                     ${isAdmin ? `<button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">删除</button>` : ''}
                                 </div>
                                 <button class="btn btn-small btn-secondary" style="width: 100%;" onclick="copyPublicationsFrontendLink()">
@@ -838,6 +912,7 @@
             applyRoleControls();
             applyInitialFiltersFromQuery();
             syncPublicationSelectionControls();
+            renderPdfBindBanner();
             loadPublications(1, currentSearch, currentType, currentStatus);
         });
         
@@ -845,6 +920,8 @@
         window.editPublication = editPublication;
         window.deletePublication = deletePublication;
         window.copyPublicationsFrontendLink = copyPublicationsFrontendLink;
+        window.bindPendingPdfToPublication = bindPendingPdfToPublication;
+        window.clearPendingPdfBinding = clearPendingPdfBinding;
     </script>
 </body>
 </html>

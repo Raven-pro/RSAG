@@ -397,6 +397,28 @@
             modal.style.display = 'block';
             document.body.style.overflow = 'hidden';
         }
+
+        function applyQuickBindFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const action = String(params.get('action') || '').trim();
+            const photoUrl = String(params.get('photo_url') || '').trim();
+
+            if (action !== 'add') {
+                return;
+            }
+
+            showAddModal();
+            if (photoUrl) {
+                document.getElementById('photo_url').value = photoUrl;
+                updatePhotoPreview();
+            }
+
+            params.delete('action');
+            params.delete('photo_url');
+            const queryText = params.toString();
+            const cleanUrl = queryText ? `${window.location.pathname}?${queryText}` : window.location.pathname;
+            history.replaceState(null, document.title, cleanUrl);
+        }
         
         // 编辑成员
         async function editMember(id) {
@@ -602,6 +624,7 @@
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', () => {
             loadTeamMembers();
+            applyQuickBindFromQuery();
         });
         
         // 暴露函数到全局作用域

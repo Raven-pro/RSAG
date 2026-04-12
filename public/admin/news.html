@@ -729,6 +729,28 @@
             }
         }
 
+        function applyQuickBindFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const action = String(params.get('action') || '').trim();
+            const featuredImage = String(params.get('featured_image') || '').trim();
+
+            if (action !== 'add') {
+                return;
+            }
+
+            showAddModal();
+            if (featuredImage) {
+                document.getElementById('featured_image').value = featuredImage;
+                updateImagePreview();
+            }
+
+            params.delete('action');
+            params.delete('featured_image');
+            const queryText = params.toString();
+            const cleanUrl = queryText ? `${window.location.pathname}?${queryText}` : window.location.pathname;
+            history.replaceState(null, document.title, cleanUrl);
+        }
+
         function resetNewsSelection() {
             selectedNewsIds.clear();
             syncNewsSelectionControls();
@@ -1402,6 +1424,7 @@
             syncNewsSelectionControls();
             setMarkdownMode('zh', 'write');
             setMarkdownMode('en', 'write');
+            applyQuickBindFromQuery();
             loadNews(1, currentSearch, currentStatus);
         });
         

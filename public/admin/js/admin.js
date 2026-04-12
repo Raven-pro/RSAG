@@ -547,6 +547,25 @@ class AdminUtils {
 
         return data;
     }
+
+    static async bindPublicationPdfFromUrl(publicationId, fileUrl) {
+        const id = Number.parseInt(publicationId, 10);
+        if (!Number.isInteger(id) || id <= 0) {
+            throw new Error('无效的论文 ID');
+        }
+
+        const normalizedUrl = String(fileUrl || '').trim();
+        if (!normalizedUrl) {
+            throw new Error('无效的 PDF 链接');
+        }
+
+        return this.apiRequest(`/publications/${id}/bind-pdf`, {
+            method: 'POST',
+            body: {
+                file_url: normalizedUrl
+            }
+        });
+    }
     
     // 表单验证
     static validateForm(form, rules) {
