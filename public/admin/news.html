@@ -259,10 +259,44 @@
         let currentPage = 1;
         let currentSearch = '';
         let currentStatus = '';
+        let pendingUploadedImage = null;
         const selectedNewsIds = new Set();
         const workflowStatuses = ['draft', 'pending_review', 'published', 'scheduled'];
         const currentUser = AdminUtils.getCurrentUser();
         const isAdmin = AdminUtils.isAdmin();
+
+        async function deleteUploadedFileById(fileId) {
+            const id = Number.parseInt(fileId, 10);
+            if (!Number.isInteger(id) || id <= 0) return;
+            try {
+                await AdminUtils.apiRequest(`/files/${id}`, { method: 'DELETE' });
+            } catch (error) {
+                console.warn('清理临时上传文件失败:', error);
+            }
+        }
+
+        function setPendingUploadedImage(fileMeta) {
+            const id = Number.parseInt(fileMeta?.id, 10);
+            const url = String(fileMeta?.url || '').trim();
+            if (!Number.isInteger(id) || !url) {
+                return;
+            }
+            if (pendingUploadedImage && pendingUploadedImage.id !== id) {
+                void deleteUploadedFileById(pendingUploadedImage.id);
+            }
+            pendingUploadedImage = { id, url };
+        }
+
+        function clearPendingUploadedImage() {
+            pendingUploadedImage = null;
+        }
+
+        function cleanupPendingUploadedImage() {
+            if (!pendingUploadedImage) return;
+            const stale = pendingUploadedImage;
+            pendingUploadedImage = null;
+            void deleteUploadedFileById(stale.id);
+        }
 
         function getTableColumnSpan() {
             return isAdmin ? 6 : 5;
@@ -518,6 +552,7 @@
             
             title.textContent = isAdmin ? '发布新闻' : '提交新闻';
             form.reset();
+            clearPendingUploadedImage();
             document.getElementById('news-id').value = '';
             
             // 设置默认发布日期为今天
@@ -534,6 +569,7 @@
         // 编辑新闻
         async function editNews(id) {
             try {
+                clearPendingUploadedImage();
                 const news = await AdminUtils.apiRequest(`/news/${id}`);
                 
                 const modal = document.getElementById('news-modal');
@@ -657,6 +693,7 @@
             const modal = document.getElementById('news-modal');
             modal.style.display = 'none';
             document.body.style.overflow = 'auto';
+            cleanupPendingUploadedImage();
         }
         
         // 隐藏预览模态框
@@ -771,6 +808,16 @@
             try {
                 const data = Object.fromEntries(formData);
                 delete data.id; // 移除ID字段
+                let keepPendingUploadedImage = false;
+
+                if (pendingUploadedImage) {
+                    const selectedImageUrl = String(data.featured_image || '').trim();
+                    if (selectedImageUrl === pendingUploadedImage.url) {
+                        keepPendingUploadedImage = true;
+                    } else {
+                        cleanupPendingUploadedImage();
+                    }
+                }
                 
                 const url = isEdit ? `/news/${id}` : '/news';
                 const method = isEdit ? 'PUT' : 'POST';
@@ -785,6 +832,10 @@
                     : (isAdmin ? '新闻发布成功' : '新闻已提交审核');
 
                 const frontendUrl = result?.frontend_url || (result?.id ? `/news/detail.html?id=${result.id}` : '');
+
+                if (keepPendingUploadedImage) {
+                    clearPendingUploadedImage();
+                }
 
                 hideModal();
                 await loadNews(currentPage, currentSearch, currentStatus);
@@ -835,6 +886,10 @@
             try {
                 AdminUtils.showNotification('正在上传图片...', 'success');
                 const result = await AdminUtils.uploadFile(file, 'news');
+                setPendingUploadedImage({
+                    id: result?.file?.id,
+                    url: result?.url
+                });
                 
                 document.getElementById('featured_image').value = result.url;
                 updateImagePreview();

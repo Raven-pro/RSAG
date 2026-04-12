@@ -166,6 +166,40 @@
     <script src="js/admin.js"></script>
     <script>
         let currentSearch = '';
+        let pendingUploadedAvatar = null;
+
+        async function deleteUploadedFileById(fileId) {
+            const id = Number.parseInt(fileId, 10);
+            if (!Number.isInteger(id) || id <= 0) return;
+            try {
+                await AdminUtils.apiRequest(`/files/${id}`, { method: 'DELETE' });
+            } catch (error) {
+                console.warn('清理临时上传文件失败:', error);
+            }
+        }
+
+        function setPendingUploadedAvatar(fileMeta) {
+            const id = Number.parseInt(fileMeta?.id, 10);
+            const url = String(fileMeta?.url || '').trim();
+            if (!Number.isInteger(id) || !url) {
+                return;
+            }
+            if (pendingUploadedAvatar && pendingUploadedAvatar.id !== id) {
+                void deleteUploadedFileById(pendingUploadedAvatar.id);
+            }
+            pendingUploadedAvatar = { id, url };
+        }
+
+        function clearPendingUploadedAvatar() {
+            pendingUploadedAvatar = null;
+        }
+
+        function cleanupPendingUploadedAvatar() {
+            if (!pendingUploadedAvatar) return;
+            const stale = pendingUploadedAvatar;
+            pendingUploadedAvatar = null;
+            void deleteUploadedFileById(stale.id);
+        }
         
         // 加载团队成员
         async function loadTeamMembers(search = '') {
@@ -259,6 +293,7 @@
             
             title.textContent = '添加团队成员';
             form.reset();
+            clearPendingUploadedAvatar();
             document.getElementById('member-id').value = '';
             document.getElementById('order_index').value = '1';
             document.getElementById('status').value = 'active';
@@ -270,6 +305,7 @@
         // 编辑成员
         async function editMember(id) {
             try {
+                clearPendingUploadedAvatar();
                 const member = await AdminUtils.apiRequest(`/team/${id}`);
                 
                 const modal = document.getElementById('member-modal');
@@ -322,6 +358,7 @@
             const modal = document.getElementById('member-modal');
             modal.style.display = 'none';
             document.body.style.overflow = 'auto';
+            cleanupPendingUploadedAvatar();
         }
         
         // 更新头像预览
@@ -372,6 +409,16 @@
             try {
                 const data = Object.fromEntries(formData);
                 delete data.id; // 移除ID字段
+                let keepPendingUploadedAvatar = false;
+
+                if (pendingUploadedAvatar) {
+                    const selectedPhotoUrl = String(data.photo_url || '').trim();
+                    if (selectedPhotoUrl === pendingUploadedAvatar.url) {
+                        keepPendingUploadedAvatar = true;
+                    } else {
+                        cleanupPendingUploadedAvatar();
+                    }
+                }
                 
                 const url = isEdit ? `/team/${id}` : '/team';
                 const method = isEdit ? 'PUT' : 'POST';
@@ -380,6 +427,10 @@
                     method,
                     body: data
                 });
+
+                if (keepPendingUploadedAvatar) {
+                    clearPendingUploadedAvatar();
+                }
                 
                 AdminUtils.showNotification(
                     isEdit ? '成员信息更新成功' : '成员添加成功',
@@ -416,6 +467,10 @@
             try {
                 AdminUtils.showNotification('正在上传头像...', 'success');
                 const result = await AdminUtils.uploadFile(file, 'avatar');
+                setPendingUploadedAvatar({
+                    id: result?.file?.id,
+                    url: result?.url
+                });
                 
                 document.getElementById('photo_url').value = result.url;
                 updatePhotoPreview();

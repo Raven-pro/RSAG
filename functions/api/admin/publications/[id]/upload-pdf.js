@@ -9,6 +9,26 @@ import {
 } from '../../utils.js';
 import { assertUploadFile, buildPublicFileUrl, buildR2Key, resolveUploadsBucket } from '../../file-utils.js';
 
+function extractUploadsKeyFromUrl(fileUrl) {
+    const text = String(fileUrl || '').trim();
+    if (!text) return '';
+
+    const marker = '/uploads/';
+
+    try {
+        const pathname = text.startsWith('http://') || text.startsWith('https://')
+            ? new URL(text).pathname
+            : text;
+        const index = pathname.indexOf(marker);
+        if (index < 0) return '';
+        return decodeURIComponent(pathname.slice(index + marker.length).replace(/^\/+/, ''));
+    } catch {
+        const index = text.indexOf(marker);
+        if (index < 0) return '';
+        return text.slice(index + marker.length).replace(/^\/+/, '');
+    }
+}
+
 // POST /api/admin/publications/[id]/upload-pdf
 export async function onRequestPost(context) {
     const { request, env, params } = context;
@@ -38,7 +58,7 @@ export async function onRequestPost(context) {
         const db = env.DB;
         await initDatabase(db);
 
-        const existing = await db.prepare('SELECT id, created_by FROM publications WHERE id = ?').bind(id).first();
+        const existing = await db.prepare('SELECT id, created_by, pdf_url FROM publications WHERE id = ?').bind(id).first();
         if (!existing) {
             return createErrorResponse('论文不存在', 404);
         }
@@ -55,6 +75,7 @@ export async function onRequestPost(context) {
         });
 
         const fileUrl = buildPublicFileUrl(key, env);
+        const previousPdfKey = extractUploadsKeyFromUrl(existing.pdf_url);
 
         if (isAdmin) {
             await db.prepare(`
@@ -73,6 +94,14 @@ export async function onRequestPost(context) {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             `).bind(fileUrl, id).run();
+        }
+
+        if (bucket && previousPdfKey && previousPdfKey !== key) {
+            try {
+                await bucket.delete(previousPdfKey);
+            } catch (cleanupError) {
+                console.warn('清理旧 PDF 文件失败:', cleanupError);
+            }
         }
 
         await logActivity(
