@@ -47,15 +47,23 @@ document.addEventListener('DOMContentLoaded', function() {
         if (rightColumn) {
             rightColumn.style.height = '';
             rightColumn.style.overflow = '';
+            rightColumn.style.boxSizing = '';
         }
         if (videoBlock) {
             videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+            videoBlock.style.flex = '';
         }
         newsList.style.maxHeight = '';
         newsList.style.overflowY = '';
+        newsList.style.margin = '';
+        newsList.style.padding = '';
+        newsList.style.listStyle = '';
+        newsList.style.flex = '';
+        newsList.style.minHeight = '';
         if (moreNewsWrapper) {
             moreNewsWrapper.style.maxHeight = '';
             moreNewsWrapper.style.overflow = '';
+            moreNewsWrapper.style.flex = '';
         }
     }
 
@@ -78,20 +86,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
         rightColumn.style.height = `${leftHeight}px`;
         rightColumn.style.overflow = 'hidden';
+        rightColumn.style.boxSizing = 'border-box';
         videoBlock.style.marginTop = 'auto';
+        videoBlock.style.flex = '0 0 auto';
 
-        const heading = rightColumn.querySelector('h2');
-        const headingHeight = heading ? Math.ceil(heading.getBoundingClientRect().height) : 0;
-        const videoHeight = Math.ceil(videoBlock.getBoundingClientRect().height);
-        const moreHeight = moreNewsWrapper ? Math.ceil(moreNewsWrapper.getBoundingClientRect().height) : 0;
-        const safetyGap = 16;
-        const availableListHeight = Math.max(
-            96,
-            Math.floor(leftHeight - headingHeight - videoHeight - moreHeight - BASE_VIDEO_GAP - safetyGap)
-        );
-
-        newsList.style.maxHeight = `${availableListHeight}px`;
+        newsList.style.margin = '0';
+        newsList.style.padding = '0';
+        newsList.style.listStyle = 'none';
+        newsList.style.flex = '1 1 auto';
+        newsList.style.minHeight = '0';
+        newsList.style.maxHeight = 'none';
         newsList.style.overflowY = 'hidden';
+
+        if (moreNewsWrapper) {
+            moreNewsWrapper.style.flex = '0 0 auto';
+        }
+    }
+
+    function scheduleSidebarFit() {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                fitSidebarHeightOnDesktop();
+            });
+        });
     }
 
     function renderNewsList(recentNews, lang) {
@@ -129,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         newsList.appendChild(li);
         updateMoreNewsLink(lang);
-        fitSidebarHeightOnDesktop();
+        scheduleSidebarFit();
     }
 
     function renderNews(items, lang) {
@@ -144,7 +161,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const fixedCount = Math.max(1, getDisplayCount());
         renderNewsList(latestNews.slice(0, fixedCount), lang);
-        fitSidebarHeightOnDesktop();
+        scheduleSidebarFit();
     }
 
     async function loadNewsFromApi() {
@@ -176,6 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadNewsFromApi().catch((error) => {
             console.error('语言切换后刷新新闻失败:', error);
         });
+        scheduleSidebarFit();
     });
 
     const handleResize = (() => {
@@ -193,15 +211,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const homeImage = document.querySelector('#home img');
     if (homeImage && !homeImage.complete) {
         homeImage.addEventListener('load', () => {
-            fitSidebarHeightOnDesktop();
+            scheduleSidebarFit();
         });
     }
 
     const videoIframe = document.querySelector('#home-video-block iframe');
     if (videoIframe) {
         videoIframe.addEventListener('load', () => {
-            fitSidebarHeightOnDesktop();
+            scheduleSidebarFit();
         });
+    }
+
+    window.addEventListener('load', () => {
+        scheduleSidebarFit();
+    });
+
+    if (typeof ResizeObserver === 'function') {
+        const { leftColumn } = getLayoutElements();
+        const observer = new ResizeObserver(() => {
+            scheduleSidebarFit();
+        });
+        if (leftColumn) observer.observe(leftColumn);
     }
 
 });
