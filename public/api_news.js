@@ -289,6 +289,15 @@ document.addEventListener('DOMContentLoaded', function() {
         scheduleDeferredRefit(lang);
     }
 
+    function refreshNewsLayoutOnReturn() {
+        if (!latestNews.length) {
+            scheduleSidebarFit();
+            return;
+        }
+        renderNewsToFit(latestLang);
+        scheduleDeferredRefit(latestLang);
+    }
+
     async function loadNewsFromApi() {
         const lang = resolveLanguage();
         const response = await fetch('/api/news');
@@ -348,7 +357,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.addEventListener('load', () => {
-        scheduleSidebarFit();
+        refreshNewsLayoutOnReturn();
+    });
+
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            refreshNewsLayoutOnReturn();
+        }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            refreshNewsLayoutOnReturn();
+        }
     });
 
     if (typeof ResizeObserver === 'function') {
