@@ -1,5 +1,6 @@
 import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from '../utils.js';
 import { normalizeOrderIndex, reorderTeamMembers } from '../team-order.js';
+import { syncEntityFileReference, clearEntityFileReferences } from '../file-references.js';
 
 // GET /api/admin/team/[id]
 export async function onRequestGet(context) {
@@ -91,6 +92,13 @@ export async function onRequestPut(context) {
             id
         ).run();
 
+        await syncEntityFileReference(db, {
+            entityType: 'team_members',
+            entityId: id,
+            fieldName: 'photo_url',
+            fileUrl: photo_url
+        });
+
         await reorderTeamMembers(db, id, targetOrder);
 
         await logActivity(
@@ -129,6 +137,11 @@ export async function onRequestDelete(context) {
         if (!existing) {
             return createErrorResponse('成员不存在', 404);
         }
+
+        await clearEntityFileReferences(db, {
+            entityType: 'team_members',
+            entityId: id
+        });
 
         await db.prepare('DELETE FROM team_members WHERE id = ?').bind(id).run();
         await reorderTeamMembers(db);

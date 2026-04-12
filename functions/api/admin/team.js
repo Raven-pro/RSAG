@@ -1,5 +1,6 @@
 import { authenticate, requireAdmin, logActivity, createResponse, createErrorResponse, initDatabase } from './utils.js';
 import { normalizeOrderIndex, reorderTeamMembers } from './team-order.js';
+import { syncEntityFileReference } from './file-references.js';
 
 // GET /api/admin/team
 export async function onRequestGet(context) {
@@ -80,6 +81,13 @@ export async function onRequestPost(context) {
 
         const memberId = result.meta.last_row_id;
         await reorderTeamMembers(db, memberId, normalizeOrderIndex(order_index, 1));
+
+        await syncEntityFileReference(db, {
+            entityType: 'team_members',
+            entityId: memberId,
+            fieldName: 'photo_url',
+            fileUrl: photo_url
+        });
 
         await logActivity(
             db,

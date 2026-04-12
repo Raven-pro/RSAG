@@ -49,6 +49,7 @@ export async function onRequestPost(context) {
 
         const category = getUploadCategory(uploadType, mimeType);
         const fileUrl = buildPublicFileUrl(key, env);
+        const initialIsOrphan = ['news', 'avatar', 'pdf'].includes(String(category || '').toLowerCase()) ? 1 : 0;
 
         const db = env.DB;
         await initDatabase(db);
@@ -56,8 +57,9 @@ export async function onRequestPost(context) {
         const insertResult = await db.prepare(`
             INSERT INTO files (
                 filename, original_name, file_url, file_type,
-                file_size, category, uploaded_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                file_size, category, uploaded_by,
+                lifecycle_status, reference_count, is_orphan
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             key,
             file.name,
@@ -65,7 +67,10 @@ export async function onRequestPost(context) {
             mimeType,
             file.size,
             category,
-            user.username
+            user.username,
+            'active',
+            0,
+            initialIsOrphan
         ).run();
 
         const fileId = insertResult.meta.last_row_id;

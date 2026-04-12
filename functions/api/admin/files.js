@@ -5,6 +5,14 @@ function parsePositiveInt(value, fallback) {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function normalizeStatusFilter(value) {
+    const status = String(value || '').trim().toLowerCase();
+    if (['active', 'orphan', 'pending_delete', 'all'].includes(status)) {
+        return status;
+    }
+    return 'active';
+}
+
 // GET /api/admin/files
 export async function onRequestGet(context) {
     const { request, env } = context;
@@ -18,6 +26,7 @@ export async function onRequestGet(context) {
         const limit = parsePositiveInt(url.searchParams.get('limit'), 12);
         const search = (url.searchParams.get('search') || '').trim();
         const type = (url.searchParams.get('type') || '').trim().toLowerCase();
+        const status = normalizeStatusFilter(url.searchParams.get('status'));
 
         const db = env.DB;
         await initDatabase(db);
@@ -49,6 +58,15 @@ export async function onRequestGet(context) {
             }
         }
 
+        if (status === 'pending_delete') {
+            whereClauses.push("lifecycle_status = 'pending_delete'");
+        } else if (status === 'orphan') {
+            whereClauses.push("lifecycle_status = 'active'");
+            whereClauses.push('is_orphan = 1');
+        } else if (status === 'active') {
+            whereClauses.push("lifecycle_status = 'active'");
+        }
+
         const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
         const totalResult = await db.prepare(`SELECT COUNT(*) as total FROM files ${whereSql}`)
@@ -61,17 +79,28 @@ export async function onRequestGet(context) {
         const offset = (currentPage - 1) * limit;
 
         const filesResult = await db.prepare(`
-            SELECT id, filename, original_name, file_url, file_type, file_size, category, uploaded_by, created_at
+            SELECT
+                id, filename, original_name, file_url, file_type, file_size, category,
+                uploaded_by, lifecycle_status, reference_count, is_orphan, deleted_at, deleted_by,
+                created_at, updated_at
             FROM files
             ${whereSql}
-            ORDER BY created_at DESC, id DESC
+            ORDER BY
+                CASE WHEN lifecycle_status = 'pending_delete' THEN 1 ELSE 0 END ASC,
+                created_at DESC,
+                id DESC
             LIMIT ? OFFSET ?
         `).bind(...params, limit, offset).all();
 
         return createResponse({
             files: filesResult.results || [],
             totalPages,
-            currentPage
+            currentPage,
+            filters: {
+                search,
+                type,
+                status
+            }
         });
     } catch (error) {
         console.error('获取文件列表失败:', error);

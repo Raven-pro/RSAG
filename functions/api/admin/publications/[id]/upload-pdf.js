@@ -8,6 +8,7 @@ import {
     initDatabase
 } from '../../utils.js';
 import { assertUploadFile, buildPublicFileUrl, buildR2Key, resolveUploadsBucket } from '../../file-utils.js';
+import { syncEntityFileReference } from '../../file-references.js';
 
 function extractUploadsKeyFromUrl(fileUrl) {
     const text = String(fileUrl || '').trim();
@@ -77,6 +78,25 @@ export async function onRequestPost(context) {
         const fileUrl = buildPublicFileUrl(key, env);
         const previousPdfKey = extractUploadsKeyFromUrl(existing.pdf_url);
 
+        await db.prepare(`
+            INSERT INTO files (
+                filename, original_name, file_url, file_type,
+                file_size, category, uploaded_by,
+                lifecycle_status, reference_count, is_orphan
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+            key,
+            file.name,
+            fileUrl,
+            'application/pdf',
+            file.size,
+            'pdf',
+            user.username,
+            'active',
+            0,
+            1
+        ).run();
+
         if (isAdmin) {
             await db.prepare(`
                 UPDATE publications
@@ -96,11 +116,40 @@ export async function onRequestPost(context) {
             `).bind(fileUrl, id).run();
         }
 
-        if (bucket && previousPdfKey && previousPdfKey !== key) {
-            try {
-                await bucket.delete(previousPdfKey);
-            } catch (cleanupError) {
-                console.warn('清理旧 PDF 文件失败:', cleanupError);
+        await syncEntityFileReference(db, {
+            entityType: 'publications',
+            entityId: id,
+            fieldName: 'pdf_url',
+            fileUrl
+        });
+
+        if (existing.pdf_url && existing.pdf_url !== fileUrl) {
+            const previousFile = await db.prepare(`
+                SELECT id, reference_count
+                FROM files
+                WHERE file_url = ?
+                ORDER BY id DESC
+                LIMIT 1
+            `).bind(existing.pdf_url).first();
+
+            const previousReferenceCount = Number.parseInt(previousFile?.reference_count, 10) || 0;
+
+            if (previousFile?.id && previousReferenceCount === 0) {
+                await db.prepare(`
+                    UPDATE files
+                    SET lifecycle_status = 'pending_delete',
+                        deleted_at = CURRENT_TIMESTAMP,
+                        deleted_by = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).bind(user.username, previousFile.id).run();
+            } else if (!previousFile?.id && bucket && previousPdfKey && previousPdfKey !== key) {
+                // 兼容历史未入 files 表的旧 PDF，仍执行一次兜底清理
+                try {
+                    await bucket.delete(previousPdfKey);
+                } catch (cleanupError) {
+                    console.warn('清理旧 PDF 文件失败:', cleanupError);
+                }
             }
         }
 

@@ -60,8 +60,17 @@
                         <option value="news">新闻图片</option>
                         <option value="general">其他</option>
                     </select>
+                    <select id="status-filter" class="form-select" style="width: auto; margin-left: 1rem;">
+                        <option value="active">当前文件</option>
+                        <option value="orphan">孤儿文件</option>
+                        <option value="pending_delete">回收站</option>
+                        <option value="all">全部状态</option>
+                    </select>
                 </div>
                 <div class="toolbar-right">
+                    <button class="btn btn-secondary" id="cleanup-trash-btn">
+                        🧹 清理回收站
+                    </button>
                     <button class="btn btn-primary" id="upload-btn">
                         📤 上传文件
                     </button>
@@ -137,16 +146,18 @@
         let currentPage = 1;
         let currentSearch = '';
         let currentType = '';
+        let currentStatus = 'active';
         let selectedFiles = [];
         
         // 加载文件列表
-        async function loadFiles(page = 1, search = '', type = '') {
+        async function loadFiles(page = 1, search = '', type = '', status = 'active') {
             try {
                 const params = new URLSearchParams({
                     page: page.toString(),
                     limit: '12',
                     ...(search && { search }),
-                    ...(type && { type })
+                    ...(type && { type }),
+                    ...(status && { status })
                 });
                 
                 const response = await AdminUtils.apiRequest(`/files?${params}`);
@@ -187,14 +198,18 @@
                                 <span class="status-badge status-success" style="font-size: 0.65rem;">
                                     ${getFileTypeText(file.file_type)}
                                 </span>
+                                ${file.lifecycle_status === 'pending_delete' ? '<span class="status-badge status-warning" style="font-size:0.65rem; margin-left:0.35rem;">回收站</span>' : ''}
+                                ${file.is_orphan ? '<span class="status-badge status-error" style="font-size:0.65rem; margin-left:0.35rem;">孤儿</span>' : ''}
                             </div>
                             <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
                                 <button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); copyFileUrl('${file.file_url}')">
                                     复制链接
                                 </button>
-                                <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); deleteFile(${file.id})">
-                                    删除
-                                </button>
+                                ${file.lifecycle_status === 'pending_delete'
+                                    ? `<button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); restoreFile(${file.id})">恢复</button>
+                                       <button class="btn btn-small btn-danger" onclick="event.stopPropagation(); hardDeleteFile(${file.id})">彻底删除</button>`
+                                    : `<button class="btn btn-small btn-danger" onclick="event.stopPropagation(); deleteFile(${file.id})">移入回收站</button>`
+                                }
                             </div>
                         </div>
                     </div>
@@ -208,7 +223,7 @@
                         response.totalPages,
                         (page) => {
                             currentPage = page;
-                            loadFiles(page, currentSearch, currentType);
+                            loadFiles(page, currentSearch, currentType, currentStatus);
                         }
                     );
                     paginationContainer.innerHTML = '';
@@ -326,7 +341,7 @@
                 
                 setTimeout(() => {
                     hideUploadArea();
-                    loadFiles(currentPage, currentSearch, currentType);
+                    loadFiles(currentPage, currentSearch, currentType, currentStatus);
                 }, 1000);
                 
             } catch (error) {
@@ -367,6 +382,14 @@
                         <div>
                             <strong>上传者:</strong> ${file.uploaded_by}
                         </div>
+                        <div>
+                            <strong>状态:</strong> ${file.lifecycle_status === 'pending_delete' ? '回收站' : '正常'}
+                        </div>
+                        <div>
+                            <strong>引用数:</strong> ${Number(file.reference_count) || 0}
+                        </div>
+                        ${file.deleted_at ? `<div><strong>删除时间:</strong> ${AdminUtils.formatDate(file.deleted_at)}</div>` : ''}
+                        ${file.deleted_by ? `<div><strong>删除人:</strong> ${file.deleted_by}</div>` : ''}
                         <div style="margin-top: 1.5rem;">
                             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">文件链接:</label>
                             <div style="display: flex; gap: 0.5rem;">
@@ -374,6 +397,12 @@
                                 <button class="btn btn-secondary" onclick="copyFileUrl('${file.file_url}')">复制</button>
                             </div>
                         </div>
+                        ${file.lifecycle_status === 'pending_delete' ? `
+                            <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                                <button class="btn btn-secondary" onclick="restoreFile(${file.id})">恢复此文件</button>
+                                <button class="btn btn-danger" onclick="hardDeleteFile(${file.id})">彻底删除</button>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
                 
@@ -396,7 +425,7 @@
         
         // 删除文件
         async function deleteFile(id) {
-            const confirmed = await AdminUtils.showConfirm('确定要删除这个文件吗？此操作不可撤销。');
+            const confirmed = await AdminUtils.showConfirm('确定将这个文件移入回收站吗？');
             if (!confirmed) return;
             
             try {
@@ -404,17 +433,77 @@
                     method: 'DELETE'
                 });
                 
-                AdminUtils.showNotification('文件删除成功', 'success');
-                loadFiles(currentPage, currentSearch, currentType);
+                AdminUtils.showNotification('文件已移入回收站', 'success');
+                loadFiles(currentPage, currentSearch, currentType, currentStatus);
                 
             } catch (error) {
                 console.error('删除文件失败:', error);
-                AdminUtils.showNotification('删除失败，请稍后重试', 'error');
+                AdminUtils.showNotification(error.message || '删除失败，请稍后重试', 'error');
+            }
+        }
+
+        async function restoreFile(id) {
+            try {
+                await AdminUtils.apiRequest('/files/restore', {
+                    method: 'POST',
+                    body: { id }
+                });
+
+                AdminUtils.showNotification('文件恢复成功', 'success');
+                document.getElementById('file-modal').style.display = 'none';
+                loadFiles(currentPage, currentSearch, currentType, currentStatus);
+            } catch (error) {
+                console.error('恢复文件失败:', error);
+                AdminUtils.showNotification(error.message || '恢复失败，请稍后重试', 'error');
+            }
+        }
+
+        async function hardDeleteFile(id) {
+            const confirmed = await AdminUtils.showConfirm('确定彻底删除该文件吗？此操作不可恢复。');
+            if (!confirmed) return;
+
+            try {
+                await AdminUtils.apiRequest(`/files/${id}?hard=true`, {
+                    method: 'DELETE'
+                });
+
+                AdminUtils.showNotification('文件已彻底删除', 'success');
+                document.getElementById('file-modal').style.display = 'none';
+                loadFiles(currentPage, currentSearch, currentType, currentStatus);
+            } catch (error) {
+                console.error('彻底删除文件失败:', error);
+                AdminUtils.showNotification(error.message || '彻底删除失败，请稍后重试', 'error');
+            }
+        }
+
+        async function cleanupTrash() {
+            const input = prompt('请输入保留天数（0=立即清空，默认 7 天）', '7');
+            if (input === null) return;
+
+            const keepDays = Number.parseInt(String(input).trim() || '7', 10);
+            const safeKeepDays = Number.isInteger(keepDays) ? keepDays : 7;
+            const confirmed = safeKeepDays === 0
+                ? await AdminUtils.showConfirm('确认立即清空回收站吗？该操作不可恢复。')
+                : await AdminUtils.showConfirm(`确认清理回收站中超过 ${safeKeepDays} 天的文件吗？`);
+            if (!confirmed) return;
+
+            try {
+                const result = await AdminUtils.apiRequest('/files/cleanup', {
+                    method: 'POST',
+                    body: { keepDays: safeKeepDays }
+                });
+
+                AdminUtils.showNotification(result.message || '回收站清理完成', 'success');
+                loadFiles(currentPage, currentSearch, currentType, currentStatus);
+            } catch (error) {
+                console.error('清理回收站失败:', error);
+                AdminUtils.showNotification(error.message || '清理失败，请稍后重试', 'error');
             }
         }
         
         // 事件监听
         document.getElementById('upload-btn').addEventListener('click', showUploadArea);
+        document.getElementById('cleanup-trash-btn').addEventListener('click', cleanupTrash);
         document.getElementById('cancel-upload-btn').addEventListener('click', hideUploadArea);
         document.getElementById('start-upload-btn').addEventListener('click', startUpload);
         document.getElementById('select-files-btn').addEventListener('click', () => {
@@ -454,16 +543,19 @@
         // 搜索和筛选
         const searchInput = document.getElementById('search-input');
         const typeFilter = document.getElementById('type-filter');
+        const statusFilter = document.getElementById('status-filter');
         
         const debouncedSearch = AdminUtils.debounce(() => {
             currentSearch = searchInput.value.trim();
             currentType = typeFilter.value;
+            currentStatus = statusFilter.value;
             currentPage = 1;
-            loadFiles(1, currentSearch, currentType);
+            loadFiles(1, currentSearch, currentType, currentStatus);
         }, 300);
         
         searchInput.addEventListener('input', debouncedSearch);
         typeFilter.addEventListener('change', debouncedSearch);
+        statusFilter.addEventListener('change', debouncedSearch);
         
         // 模态框点击外部关闭
         document.getElementById('file-modal').addEventListener('click', (e) => {
@@ -474,13 +566,15 @@
         
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', () => {
-            loadFiles();
+            loadFiles(1, currentSearch, currentType, currentStatus);
         });
         
         // 暴露函数到全局作用域
         window.viewFile = viewFile;
         window.copyFileUrl = copyFileUrl;
         window.deleteFile = deleteFile;
+        window.restoreFile = restoreFile;
+        window.hardDeleteFile = hardDeleteFile;
     </script>
 </body>
 </html>

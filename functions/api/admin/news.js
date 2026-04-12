@@ -1,6 +1,7 @@
 // 新闻管理API
 import { authenticate, isAdminUser, logActivity, buildPaginationQuery, createResponse, createErrorResponse, initDatabase } from './utils.js';
 import { normalizeWorkflowStatus, parseWorkflowStatusFilter, buildWorkflowOnCreate } from './workflow.js';
+import { syncEntityFileReference } from './file-references.js';
 
 function hydrateNewsRow(row) {
     return {
@@ -138,6 +139,13 @@ export async function onRequestPost(context) {
             workflow.status, workflow.scheduled_publish_at, workflow.submitted_at, workflow.reviewed_by, workflow.reviewed_at,
             user.username
         ).run();
+
+        await syncEntityFileReference(db, {
+            entityType: 'news',
+            entityId: result.meta.last_row_id,
+            fieldName: 'featured_image',
+            fileUrl: featured_image
+        });
         
         // 记录活动日志
         await logActivity(

@@ -136,9 +136,31 @@ export async function initDatabase(db) {
                 file_size INTEGER,
                 category TEXT,
                 uploaded_by TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                lifecycle_status TEXT DEFAULT 'active',
+                reference_count INTEGER DEFAULT 0,
+                is_orphan INTEGER DEFAULT 0,
+                deleted_at DATETIME,
+                deleted_by TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `).run();
+
+        // 创建文件引用关系表
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS file_references (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_id INTEGER NOT NULL,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                field_name TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(file_id, entity_type, entity_id, field_name)
+            )
+        `).run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_file_refs_entity ON file_references(entity_type, entity_id)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_file_refs_file ON file_references(file_id)').run();
 
         await ensureColumnExists(db, 'publications', 'type', 'TEXT');
         await ensureColumnExists(db, 'publications', 'types', 'TEXT');
@@ -155,12 +177,61 @@ export async function initDatabase(db) {
         await ensureColumnExists(db, 'news', 'summary_en', 'TEXT');
         await ensureColumnExists(db, 'news', 'content_en', 'TEXT');
         await ensureColumnExists(db, 'files', 'category', 'TEXT');
+        await ensureColumnExists(db, 'files', 'lifecycle_status', "TEXT DEFAULT 'active'");
+        await ensureColumnExists(db, 'files', 'reference_count', 'INTEGER DEFAULT 0');
+        await ensureColumnExists(db, 'files', 'is_orphan', 'INTEGER DEFAULT 0');
+        await ensureColumnExists(db, 'files', 'deleted_at', 'DATETIME');
+        await ensureColumnExists(db, 'files', 'deleted_by', 'TEXT');
+        await ensureColumnExists(db, 'files', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP');
 
         // 兼容历史状态值，统一映射到新工作流状态
         await db.prepare("UPDATE publications SET status = 'pending_review' WHERE lower(status) = 'submitted'").run();
         await db.prepare("UPDATE publications SET status = 'published' WHERE lower(status) = 'accepted'").run();
         await db.prepare("UPDATE news SET status = 'pending_review' WHERE lower(status) = 'submitted'").run();
         await db.prepare("UPDATE news SET status = 'published' WHERE lower(status) = 'accepted'").run();
+
+        // 回填文件与业务实体之间的引用关系（幂等）
+        await db.prepare(`
+            INSERT OR IGNORE INTO file_references (file_id, entity_type, entity_id, field_name)
+            SELECT f.id, 'news', n.id, 'featured_image'
+            FROM news n
+            JOIN files f ON f.file_url = n.featured_image
+            WHERE n.featured_image IS NOT NULL AND trim(n.featured_image) <> ''
+        `).run();
+        await db.prepare(`
+            INSERT OR IGNORE INTO file_references (file_id, entity_type, entity_id, field_name)
+            SELECT f.id, 'team_members', t.id, 'photo_url'
+            FROM team_members t
+            JOIN files f ON f.file_url = t.photo_url
+            WHERE t.photo_url IS NOT NULL AND trim(t.photo_url) <> ''
+        `).run();
+        await db.prepare(`
+            INSERT OR IGNORE INTO file_references (file_id, entity_type, entity_id, field_name)
+            SELECT f.id, 'publications', p.id, 'pdf_url'
+            FROM publications p
+            JOIN files f ON f.file_url = p.pdf_url
+            WHERE p.pdf_url IS NOT NULL AND trim(p.pdf_url) <> ''
+        `).run();
+
+        await db.prepare(`
+            UPDATE files
+            SET reference_count = (
+                    SELECT COUNT(*)
+                    FROM file_references r
+                    WHERE r.file_id = files.id
+                ),
+                is_orphan = CASE
+                    WHEN (
+                        SELECT COUNT(*)
+                        FROM file_references r
+                        WHERE r.file_id = files.id
+                    ) > 0 THEN 0
+                    WHEN lower(COALESCE(category, '')) IN ('news', 'avatar', 'pdf') THEN 1
+                    ELSE COALESCE(is_orphan, 0)
+                END,
+                lifecycle_status = COALESCE(NULLIF(trim(lifecycle_status), ''), 'active'),
+                updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)
+        `).run();
 
         // 创建活动日志表
         await db.prepare(`

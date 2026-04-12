@@ -9,6 +9,7 @@ import {
     initDatabase
 } from '../utils.js';
 import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
+import { clearEntityFileReferences } from '../file-references.js';
 
 const ALLOWED_TYPES = new Set(['SCI', 'EI', 'Conference', 'DomesticConference']);
 const TYPE_ALIASES = new Map([
@@ -226,6 +227,11 @@ export async function onRequestDelete(context) {
         if (!existing) {
             return createErrorResponse('论文不存在', 404);
         }
+
+        await clearEntityFileReferences(db, {
+            entityType: 'publications',
+            entityId: id
+        });
 
         await db.prepare('DELETE FROM publications WHERE id = ?').bind(id).run();
 

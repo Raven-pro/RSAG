@@ -9,6 +9,7 @@ import {
     initDatabase
 } from '../utils.js';
 import { normalizeWorkflowStatus, buildWorkflowOnUpdate } from '../workflow.js';
+import { syncEntityFileReference, clearEntityFileReferences } from '../file-references.js';
 
 function hydrateNewsRow(row) {
     return {
@@ -104,6 +105,13 @@ export async function onRequestPut(context) {
             id
         ).run();
 
+        await syncEntityFileReference(db, {
+            entityType: 'news',
+            entityId: id,
+            fieldName: 'featured_image',
+            fileUrl: featured_image
+        });
+
         await logActivity(
             db,
             isAdmin ? '更新新闻' : '更新并提交审核',
@@ -143,6 +151,11 @@ export async function onRequestDelete(context) {
         if (!existing) {
             return createErrorResponse('新闻不存在', 404);
         }
+
+        await clearEntityFileReferences(db, {
+            entityType: 'news',
+            entityId: id
+        });
 
         await db.prepare('DELETE FROM news WHERE id = ?').bind(id).run();
 
