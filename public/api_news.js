@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const MOBILE_NEWS_ITEMS = 3;
     const BASE_VIDEO_GAP = 20;
     const NEWS_GAP_MIN = 8;
-    const NEWS_GAP_MAX = 16;
     const NEWS_GAP_DEFAULT = 12;
     let latestNews = [];
     let latestLang = 'zh';
@@ -44,71 +43,38 @@ document.addEventListener('DOMContentLoaded', function() {
         newsList.classList.remove('space-y-4');
         newsList.style.display = 'flex';
         newsList.style.flexDirection = 'column';
+        newsList.style.justifyContent = 'flex-start';
         newsList.style.gap = `${NEWS_GAP_DEFAULT}px`;
         newsList.style.margin = '0';
         newsList.style.padding = '0';
         newsList.style.listStyle = 'none';
     }
 
-    function getNewsItemHeightEstimate() {
-        const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-        const titleLineHeight = 1.45 * rootFont;
-        const titleRows = 2;
-        const dateRow = 20;
-        const innerPadding = 16;
-        return Math.ceil(titleLineHeight * titleRows + dateRow + innerPadding);
+    function getRenderedNewsItemsHeight() {
+        const items = Array.from(newsList.children);
+        return items.reduce((sum, item) => {
+            return sum + Math.ceil(item.getBoundingClientRect().height);
+        }, 0);
     }
 
-    function computeAdaptiveCount(maxCount) {
-        const safeMax = Math.max(1, maxCount);
-        if (window.innerWidth < DESKTOP_MIN_WIDTH) {
-            return Math.min(safeMax, latestNews.length);
-        }
-
-        const available = newsList.clientHeight;
-        if (!Number.isFinite(available) || available <= 0) {
-            return Math.min(safeMax, latestNews.length);
-        }
-
-        const estimatedItemHeight = getNewsItemHeightEstimate();
-        const estimatedCount = Math.floor(
-            (available + NEWS_GAP_DEFAULT) / (estimatedItemHeight + NEWS_GAP_DEFAULT)
-        );
-        const adaptive = Math.max(1, Math.min(estimatedCount, safeMax, latestNews.length));
-        return adaptive;
-    }
-
-    function setAdaptiveGap() {
+    function setAdaptiveGap(minGap) {
         const items = Array.from(newsList.children);
         if (items.length <= 1) {
             newsList.style.gap = '0px';
-            return;
+            return 0;
         }
 
-        const totalItemsHeight = items.reduce((sum, item) => {
-            return sum + Math.ceil(item.getBoundingClientRect().height);
-        }, 0);
-
+        const totalItemsHeight = getRenderedNewsItemsHeight();
         const available = newsList.clientHeight;
         if (!Number.isFinite(available) || available <= totalItemsHeight) {
-            newsList.style.gap = `${NEWS_GAP_MIN}px`;
-            return;
+            newsList.style.gap = `${minGap}px`;
+            return minGap;
         }
 
         const dynamicGap = Math.floor((available - totalItemsHeight) / (items.length - 1));
-        const clampedGap = Math.max(NEWS_GAP_MIN, Math.min(NEWS_GAP_MAX, dynamicGap));
-        newsList.style.gap = `${clampedGap}px`;
-    }
-
-    function getNewsOverflowPx() {
-        const lastItem = newsList.lastElementChild;
-        if (!lastItem) return 0;
-
-        const listRect = newsList.getBoundingClientRect();
-        const itemRect = lastItem.getBoundingClientRect();
-        const visualOverflow = Math.ceil(itemRect.bottom - listRect.bottom);
-        const scrollOverflow = Math.ceil(newsList.scrollHeight - newsList.clientHeight);
-        return Math.max(0, visualOverflow, scrollOverflow);
+        const finalGap = Math.max(minGap, dynamicGap);
+        newsList.style.gap = `${finalGap}px`;
+        return finalGap;
     }
 
     function clearDeferredFitTimers() {
@@ -118,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function scheduleDeferredRefit(lang) {
         clearDeferredFitTimers();
-        [120, 360, 900].forEach((delay) => {
+        [220].forEach((delay) => {
             const timerId = setTimeout(() => {
                 renderNewsToFit(lang);
             }, delay);
@@ -142,21 +108,46 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        const maxCount = Math.max(1, getDisplayCount());
+        const maxCount = Math.max(1, Math.min(getDisplayCount(), latestNews.length));
         applyNewsListBaseStyles();
 
         scheduleSidebarFit(() => {
-            let count = computeAdaptiveCount(maxCount);
-            renderNewsList(latestNews.slice(0, count), lang);
-            fitSidebarHeightOnDesktop();
-            setAdaptiveGap();
+            if (window.innerWidth < DESKTOP_MIN_WIDTH) {
+                renderNewsList(latestNews.slice(0, maxCount), lang);
+                newsList.style.gap = `${NEWS_GAP_DEFAULT}px`;
+                return;
+            }
 
-            while (count > 1 && getNewsOverflowPx() > 0) {
-                count -= 1;
+            newsList.style.visibility = 'hidden';
+            let count = maxCount;
+            let fitted = false;
+
+            while (count >= 1) {
                 renderNewsList(latestNews.slice(0, count), lang);
                 fitSidebarHeightOnDesktop();
-                setAdaptiveGap();
+
+                const available = newsList.clientHeight;
+                const totalItemsHeight = getRenderedNewsItemsHeight();
+                const requiredHeight = totalItemsHeight + NEWS_GAP_MIN * Math.max(0, count - 1);
+
+                if (Number.isFinite(available) && available >= requiredHeight) {
+                    fitted = true;
+                    break;
+                }
+
+                count -= 1;
             }
+
+            if (!fitted) {
+                renderNewsList(latestNews.slice(0, 1), lang);
+                fitSidebarHeightOnDesktop();
+                newsList.style.gap = '0px';
+                newsList.style.visibility = 'visible';
+                return;
+            }
+
+            setAdaptiveGap(NEWS_GAP_MIN);
+            newsList.style.visibility = 'visible';
         });
     }
 
@@ -182,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
         newsList.style.overflowY = '';
         newsList.style.flex = '';
         newsList.style.minHeight = '';
+        newsList.style.visibility = '';
         newsList.style.gap = `${NEWS_GAP_DEFAULT}px`;
         if (moreNewsWrapper) {
             moreNewsWrapper.style.maxHeight = '';
@@ -275,6 +267,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderNoNews(lang) {
+        newsList.style.visibility = 'visible';
         newsList.innerHTML = '';
         const li = document.createElement('li');
         li.innerHTML = `
