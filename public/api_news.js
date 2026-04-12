@@ -3,9 +3,11 @@
 document.addEventListener('DOMContentLoaded', function() {
     const newsList = document.getElementById('news-list');
     const moreNewsLink = document.getElementById('news-more-link');
+    const moreNewsWrapper = document.getElementById('news-more-wrapper');
     const DESKTOP_MIN_WIDTH = 768;
     const DESKTOP_NEWS_ITEMS = 4;
     const MOBILE_NEWS_ITEMS = 3;
+    const BASE_VIDEO_GAP = 20;
     let latestNews = [];
     let latestLang = 'zh';
 
@@ -31,6 +33,65 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getDisplayCount() {
         return window.innerWidth >= DESKTOP_MIN_WIDTH ? DESKTOP_NEWS_ITEMS : MOBILE_NEWS_ITEMS;
+    }
+
+    function getLayoutElements() {
+        const leftColumn = document.getElementById('home-main-column');
+        const rightColumn = document.getElementById('home-sidebar-column');
+        const videoBlock = document.getElementById('home-video-block');
+        return { leftColumn, rightColumn, videoBlock };
+    }
+
+    function resetSidebarStyles() {
+        const { rightColumn, videoBlock } = getLayoutElements();
+        if (rightColumn) {
+            rightColumn.style.height = '';
+            rightColumn.style.overflow = '';
+        }
+        if (videoBlock) {
+            videoBlock.style.marginTop = `${BASE_VIDEO_GAP}px`;
+        }
+        newsList.style.maxHeight = '';
+        newsList.style.overflowY = '';
+        if (moreNewsWrapper) {
+            moreNewsWrapper.style.maxHeight = '';
+            moreNewsWrapper.style.overflow = '';
+        }
+    }
+
+    function fitSidebarHeightOnDesktop() {
+        const { leftColumn, rightColumn, videoBlock } = getLayoutElements();
+        if (!leftColumn || !rightColumn || !videoBlock) {
+            return;
+        }
+
+        if (window.innerWidth < DESKTOP_MIN_WIDTH) {
+            resetSidebarStyles();
+            return;
+        }
+
+        const leftHeight = Math.round(leftColumn.getBoundingClientRect().height);
+        if (!Number.isFinite(leftHeight) || leftHeight <= 0) {
+            resetSidebarStyles();
+            return;
+        }
+
+        rightColumn.style.height = `${leftHeight}px`;
+        rightColumn.style.overflow = 'hidden';
+        videoBlock.style.marginTop = 'auto';
+
+        const heading = rightColumn.querySelector('h2');
+        const headingHeight = heading ? Math.ceil(heading.getBoundingClientRect().height) : 0;
+        const videoHeight = Math.ceil(videoBlock.getBoundingClientRect().height);
+        const moreHeight = moreNewsWrapper ? Math.ceil(moreNewsWrapper.getBoundingClientRect().height) : 0;
+        const safetyGap = 16;
+        const availableListHeight = Math.max(
+            96,
+            Math.floor(leftHeight - headingHeight - videoHeight - moreHeight - BASE_VIDEO_GAP - safetyGap)
+        );
+
+        newsList.style.maxHeight = `${availableListHeight}px`;
+        newsList.style.overflowY = 'hidden';
     }
 
     function renderNewsList(recentNews, lang) {
@@ -68,6 +129,7 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         newsList.appendChild(li);
         updateMoreNewsLink(lang);
+        fitSidebarHeightOnDesktop();
     }
 
     function renderNews(items, lang) {
@@ -82,6 +144,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const fixedCount = Math.max(1, getDisplayCount());
         renderNewsList(latestNews.slice(0, fixedCount), lang);
+        fitSidebarHeightOnDesktop();
     }
 
     async function loadNewsFromApi() {
@@ -126,5 +189,19 @@ document.addEventListener('DOMContentLoaded', function() {
     })();
 
     window.addEventListener('resize', handleResize);
+
+    const homeImage = document.querySelector('#home img');
+    if (homeImage && !homeImage.complete) {
+        homeImage.addEventListener('load', () => {
+            fitSidebarHeightOnDesktop();
+        });
+    }
+
+    const videoIframe = document.querySelector('#home-video-block iframe');
+    if (videoIframe) {
+        videoIframe.addEventListener('load', () => {
+            fitSidebarHeightOnDesktop();
+        });
+    }
 
 });
