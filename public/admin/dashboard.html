@@ -268,7 +268,6 @@
             ];
 
             const leader = series.slice().sort((a, b) => b.total - a.total)[0];
-            const maLabel = mode === 'week' ? '4周均线' : '7日均线';
             const peakCards = series.map((item) => {
                 const peakValue = Number(item?.peak?.value) || 0;
                 const peakDate = item?.peak?.date ? formatBucketLabel(item.peak.date, mode) : '-';
@@ -284,7 +283,7 @@
             container.innerHTML = `
                 ${peakCards}
                 <div style="grid-column:1 / -1; border:1px dashed #cbd5e1; border-radius:10px; padding:0.6rem 0.78rem; background:#ffffff; color:#475569; font-size:0.8rem;">
-                    当前${mode === 'week' ? '周' : '日'}粒度下，活跃度最高为 <strong style="color:#0f172a;">${leader.label}</strong>（总新增 ${leader.total}）；趋势曲线使用 ${maLabel}。
+                    当前${mode === 'week' ? '周' : '日'}粒度下，活跃度最高为 <strong style="color:#0f172a;">${leader.label}</strong>（总新增 ${leader.total}）；柱和线均表示新增量。
                 </div>
             `;
         }
@@ -371,7 +370,7 @@
         function buildPointDots(points, color, strokeColor, dates, label, mode) {
             return points.map((point) => `
                 <circle cx="${point.x}" cy="${point.y}" r="2.8" fill="${color}" stroke="${strokeColor}" stroke-width="1.2">
-                    <title>${formatBucketLabel(dates[point.index], mode)} ${label}均线：${point.value}</title>
+                    <title>${formatBucketLabel(dates[point.index], mode)} ${label}新增：${point.value}</title>
                 </circle>
             `).join('');
         }
@@ -494,7 +493,7 @@
             const lineMarkup = visibleSeries.map((item) => {
                 const offset = seriesOffsets.get(item.key) || 0;
                 const linePositions = xPositions.map((x) => x + offset);
-                const points = buildSeriesPoints(item.movingAvg, linePositions, topPad, innerHeight, axisMax);
+                const points = buildSeriesPoints(item.values, linePositions, topPad, innerHeight, axisMax);
                 const path = buildLinePath(points);
                 return `
                     <path d="${path}" fill="none" stroke="${item.lineColor}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
@@ -549,8 +548,7 @@
                 `;
             }).join('');
 
-            const maLabel = mode === 'week' ? '4周均线' : '7日均线';
-            const desc = `运营趋势组合图，柱状表示新增数量，曲线表示${maLabel}。`; 
+            const desc = '运营趋势组合图，柱状与折线都表示新增数量。'; 
             const emptyHint = visibleSeries.length === 0
                 ? '<div style="padding:0.7rem 0.75rem; color:#b45309; font-size:0.82rem;">请至少保留一个维度。</div>'
                 : '';
@@ -558,7 +556,7 @@
             container.innerHTML = `
                 <div style="display:flex; gap:0.65rem; flex-wrap:wrap; align-items:center; margin-bottom:0.75rem; font-size:0.83rem; color:#334155;">
                     ${legendMarkup}
-                    <span style="font-size:0.8rem; color:#64748b; margin-left:0.2rem;">柱: 新增量 / 线: ${maLabel}</span>
+                    <span style="font-size:0.8rem; color:#64748b; margin-left:0.2rem;">柱: 新增量 / 线: 新增量趋势</span>
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:12px; padding:0.5rem; background:#ffffff; overflow-x:auto;">
                     <div style="min-width:760px;">
