@@ -2,6 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     const teamGrid = document.getElementById('team-grid');
+    const teamToggleButton = document.getElementById('team-toggle-btn');
     const detailModal = document.createElement('div');
     detailModal.id = 'team-detail-modal';
     detailModal.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1200; padding:1rem;';
@@ -20,6 +21,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('错误：未能找到 ID 为 "team-grid" 的团队网格容器。');
         return;
     }
+
+    let teamAll = [];
+    let showAllMembers = false;
 
     function escapeHtml(value) {
         return String(value || '')
@@ -59,6 +63,94 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.style.overflow = 'hidden';
     }
 
+    function getCurrentLanguage() {
+        const lang = String(document.documentElement.lang || 'zh').toLowerCase();
+        return lang.startsWith('en') ? 'en' : 'zh';
+    }
+
+    function getToggleLabels() {
+        return getCurrentLanguage() === 'en'
+            ? { show: 'Show All Members', hide: 'Show Less' }
+            : { show: '显示全部成员', hide: '收起成员' };
+    }
+
+    function getTwoRowCount() {
+        const width = window.innerWidth;
+        if (width >= 1024) return 8; // lg: 4列 * 2行
+        if (width >= 768) return 6;  // md: 3列 * 2行
+        if (width >= 640) return 4;  // sm: 2列 * 2行
+        return 2;                    // mobile: 1列 * 2行
+    }
+
+    function createMemberCard(member) {
+        const memberDiv = document.createElement('div');
+        memberDiv.className = 'text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200';
+        memberDiv.style.cursor = 'pointer';
+
+        const isLeader = (member.title || '').includes('教授') || (member.title || '').includes('研究员');
+        const imgBorderClass = isLeader ? 'border-2 border-tsinghua-purple' : '';
+
+        const statusBadge = (() => {
+            switch (member.status) {
+                case 'active':
+                    return '<span class="inline-block px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">在组</span>';
+                case 'alumni':
+                    return '<span class="inline-block px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">已毕业</span>';
+                case 'inactive':
+                    return '<span class="inline-block px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-600">离组</span>';
+                default:
+                    return '';
+            }
+        })();
+
+        memberDiv.innerHTML = `
+            <img src="${member.photo_url}" alt="${member.name}照片" class="w-24 h-24 rounded-full mx-auto mb-4 ${imgBorderClass}" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
+            <h3 class="text-lg font-semibold text-gray-800">${member.name}</h3>
+            <p class="${isLeader ? 'text-tsinghua-purple' : 'text-gray-600'}">${member.title || ''}</p>
+            <div class="mt-2">${statusBadge}</div>
+            ${member.research_area ? `<p class="text-sm text-gray-500 mt-2">${member.research_area}</p>` : ''}
+            <p class="text-xs text-blue-600 mt-3">点击查看详细信息</p>
+        `;
+
+        memberDiv.addEventListener('click', () => openMemberDetail(member));
+        return memberDiv;
+    }
+
+    function updateToggleButton() {
+        if (!teamToggleButton) return;
+
+        const previewCount = getTwoRowCount();
+        if (teamAll.length <= previewCount) {
+            teamToggleButton.style.display = 'none';
+            return;
+        }
+
+        const labels = getToggleLabels();
+        teamToggleButton.style.display = 'inline-block';
+        teamToggleButton.textContent = showAllMembers ? labels.hide : labels.show;
+    }
+
+    function renderTeamGrid() {
+        teamGrid.innerHTML = '';
+
+        if (!teamAll.length) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'col-span-full text-center py-8';
+            emptyDiv.innerHTML = '<div class="text-gray-500">暂无团队成员信息。</div>';
+            teamGrid.appendChild(emptyDiv);
+            if (teamToggleButton) teamToggleButton.style.display = 'none';
+            return;
+        }
+
+        const previewCount = getTwoRowCount();
+        const visibleMembers = showAllMembers ? teamAll : teamAll.slice(0, previewCount);
+        visibleMembers.forEach((member) => {
+            teamGrid.appendChild(createMemberCard(member));
+        });
+
+        updateToggleButton();
+    }
+
     function closeMemberDetail() {
         detailModal.style.display = 'none';
         document.body.style.overflow = 'auto';
@@ -75,6 +167,34 @@ document.addEventListener('DOMContentLoaded', function() {
         closeButton.addEventListener('click', closeMemberDetail);
     }
 
+    if (teamToggleButton) {
+        teamToggleButton.addEventListener('click', () => {
+            showAllMembers = !showAllMembers;
+            renderTeamGrid();
+
+            if (!showAllMembers) {
+                const teamSection = document.getElementById('team');
+                if (teamSection) {
+                    teamSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        });
+    }
+
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            if (teamAll.length > 0) {
+                renderTeamGrid();
+            }
+        }, 120);
+    });
+
+    window.addEventListener('rsag-language-change', () => {
+        updateToggleButton();
+    });
+
     // 从API加载团队成员数据
     fetch('/api/team')
         .then(response => {
@@ -85,60 +205,13 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(data => {
             // 调整为显示所有成员（包括 alumni/inactive）
-            const teamAll = (data.team || []).map(m => ({
+            teamAll = (data.team || []).map(m => ({
                 ...m,
                 // 兼容可能缺失的字段
                 status: m.status || 'active'
             }));
-
-            // 清空加载提示
-            teamGrid.innerHTML = '';
-
-            if (teamAll.length > 0) {
-                teamAll.forEach(member => {
-                    const memberDiv = document.createElement('div');
-                    memberDiv.className = 'text-center bg-white p-6 rounded-lg shadow-sm border border-gray-200';
-                    memberDiv.style.cursor = 'pointer';
-
-                    // 样式区分状态
-                    const isLeader = (member.title || '').includes('教授') || (member.title || '').includes('研究员');
-                    const imgBorderClass = isLeader ? 'border-2 border-tsinghua-purple' : '';
-
-                    const statusBadge = (() => {
-                        switch (member.status) {
-                            case 'active':
-                                return '<span class="inline-block px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">在组</span>';
-                            case 'alumni':
-                                return '<span class="inline-block px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">已毕业</span>';
-                            case 'inactive':
-                                return '<span class="inline-block px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-600">离组</span>';
-                            default:
-                                return '';
-                        }
-                    })();
-
-                    memberDiv.innerHTML = `
-                        <img src="${member.photo_url}" alt="${member.name}照片" class="w-24 h-24 rounded-full mx-auto mb-4 ${imgBorderClass}" onerror="this.src='https://placehold.co/150x150/cccccc/FFFFFF?text=Photo'">
-                        <h3 class="text-lg font-semibold text-gray-800">${member.name}</h3>
-                        <p class="${isLeader ? 'text-tsinghua-purple' : 'text-gray-600'}">${member.title || ''}</p>
-                        <div class="mt-2">${statusBadge}</div>
-                        ${member.research_area ? `<p class="text-sm text-gray-500 mt-2">${member.research_area}</p>` : ''}
-                        <p class="text-xs text-blue-600 mt-3">点击查看详细信息</p>
-                    `;
-
-                    memberDiv.addEventListener('click', () => openMemberDetail(member));
-
-                    teamGrid.appendChild(memberDiv);
-                });
-            } else {
-                // 没有团队成员
-                const emptyDiv = document.createElement('div');
-                emptyDiv.className = 'col-span-full text-center py-8';
-                emptyDiv.innerHTML = `
-                    <div class="text-gray-500">暂无团队成员信息。</div>
-                `;
-                teamGrid.appendChild(emptyDiv);
-            }
+            showAllMembers = false;
+            renderTeamGrid();
 
         })
         .catch(error => {
@@ -150,5 +223,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="text-red-500">加载团队成员时出错: ${error.message}</div>
                 </div>
             `;
+            if (teamToggleButton) {
+                teamToggleButton.style.display = 'none';
+            }
         });
 });
