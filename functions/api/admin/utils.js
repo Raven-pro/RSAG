@@ -436,9 +436,29 @@ async function ensureColumnExists(db, tableName, columnName, columnType) {
         await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`).run();
     } catch (error) {
         const message = String(error?.message || '');
-        if (!message.includes('duplicate column name')) {
-            throw error;
+        if (message.includes('duplicate column name')) {
+            return;
         }
+
+        // D1/SQLite 在 ALTER TABLE ADD COLUMN 时不接受 DEFAULT CURRENT_TIMESTAMP 这类非常量默认值。
+        // 遇到该错误时自动去掉默认值并重试，避免初始化流程中断。
+        if (/non-constant default|default value of column .* is not constant/i.test(message)) {
+            const fallbackType = String(columnType || '').replace(/\s+DEFAULT\s+CURRENT_TIMESTAMP\b/i, '').trim();
+            if (fallbackType && fallbackType !== columnType) {
+                try {
+                    await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${fallbackType}`).run();
+                    return;
+                } catch (retryError) {
+                    const retryMessage = String(retryError?.message || '');
+                    if (retryMessage.includes('duplicate column name')) {
+                        return;
+                    }
+                    throw retryError;
+                }
+            }
+        }
+
+        throw error;
     }
 }
 
