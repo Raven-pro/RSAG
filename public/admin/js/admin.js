@@ -5,6 +5,16 @@ class AdminUtils {
     static dashboardPath = '/admin/dashboard.html';
     static memberHomePath = '/admin/news.html';
     static flashStyleInjected = false;
+    static pdfLibLoaderPromise = null;
+    static uploadLimits = {
+        avatar: 512 * 1024,
+        image: 2 * 1024 * 1024,
+        news: 2 * 1024 * 1024,
+        pdf: 12 * 1024 * 1024,
+        document: 50 * 1024 * 1024,
+        general: 50 * 1024 * 1024,
+        fallback: 50 * 1024 * 1024
+    };
 
     static ensureFlashStyle() {
         if (this.flashStyleInjected) {
@@ -273,11 +283,205 @@ class AdminUtils {
             minute: '2-digit'
         });
     }
+
+    static formatBytes(bytes = 0) {
+        const value = Number(bytes) || 0;
+        if (value < 1024) return `${value} B`;
+        if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+        return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    static resolveUploadSizeLimit(type = 'general', mimeType = '') {
+        const normalizedType = String(type || '').toLowerCase();
+        const normalizedMime = String(mimeType || '').toLowerCase();
+
+        if (normalizedType === 'avatar') return this.uploadLimits.avatar;
+        if (normalizedType === 'news' || normalizedType === 'image') return this.uploadLimits.image;
+        if (normalizedType === 'pdf' || normalizedMime === 'application/pdf') return this.uploadLimits.pdf;
+        if (normalizedMime.startsWith('image/')) return this.uploadLimits.image;
+        if (normalizedType === 'document') return this.uploadLimits.document;
+
+        return this.uploadLimits.fallback;
+    }
+
+    static replaceFileExtension(filename = '', extension = '') {
+        const safeName = String(filename || 'upload');
+        const ext = String(extension || '').trim();
+        if (!ext) return safeName;
+        if (!safeName.includes('.')) return `${safeName}${ext}`;
+        return safeName.replace(/\.[^.]+$/, ext);
+    }
+
+    static loadImageFromFile(file) {
+        return new Promise((resolve, reject) => {
+            const objectUrl = URL.createObjectURL(file);
+            const image = new Image();
+            image.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve(image);
+            };
+            image.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('图片读取失败'));
+            };
+            image.src = objectUrl;
+        });
+    }
+
+    static canvasToBlob(canvas, mimeType, quality) {
+        return new Promise((resolve) => {
+            canvas.toBlob((blob) => resolve(blob), mimeType, quality);
+        });
+    }
+
+    static async compressImageFile(file, { targetBytes, uploadType = 'image' } = {}) {
+        const mimeType = String(file?.type || '').toLowerCase();
+        if (!mimeType.startsWith('image/') || mimeType === 'image/gif') {
+            return file;
+        }
+
+        const limit = Number(targetBytes) || this.resolveUploadSizeLimit(uploadType, mimeType);
+        if (file.size <= limit) {
+            return file;
+        }
+
+        const sourceImage = await this.loadImageFromFile(file);
+        const maxSide = uploadType === 'avatar' ? 768 : 1920;
+        const baseScale = Math.min(1, maxSide / Math.max(sourceImage.width || 1, sourceImage.height || 1));
+        const scaleCandidates = [baseScale, baseScale * 0.85, baseScale * 0.7].filter((value, index, arr) => value > 0 && arr.indexOf(value) === index);
+        const qualityCandidates = [0.9, 0.82, 0.74, 0.66, 0.58, 0.5, 0.42];
+        const outputMime = mimeType === 'image/png' ? 'image/webp' : 'image/jpeg';
+
+        let bestBlob = null;
+        for (const scale of scaleCandidates) {
+            const width = Math.max(1, Math.round(sourceImage.width * scale));
+            const height = Math.max(1, Math.round(sourceImage.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) continue;
+            ctx.drawImage(sourceImage, 0, 0, width, height);
+
+            for (const quality of qualityCandidates) {
+                const blob = await this.canvasToBlob(canvas, outputMime, quality);
+                if (!blob) continue;
+                if (!bestBlob || blob.size < bestBlob.size) {
+                    bestBlob = blob;
+                }
+                if (blob.size <= limit) {
+                    bestBlob = blob;
+                    break;
+                }
+            }
+
+            if (bestBlob && bestBlob.size <= limit) {
+                break;
+            }
+        }
+
+        if (!bestBlob || bestBlob.size >= file.size) {
+            return file;
+        }
+
+        const ext = bestBlob.type === 'image/webp' ? '.webp' : '.jpg';
+        return new File([bestBlob], this.replaceFileExtension(file.name, ext), {
+            type: bestBlob.type,
+            lastModified: Date.now()
+        });
+    }
+
+    static async ensurePdfLibLoaded() {
+        if (window.PDFLib) {
+            return window.PDFLib;
+        }
+
+        if (!this.pdfLibLoaderPromise) {
+            this.pdfLibLoaderPromise = new Promise((resolve, reject) => {
+                const scriptId = 'pdf-lib-cdn-script';
+                const existing = document.getElementById(scriptId);
+                if (existing) {
+                    existing.addEventListener('load', () => resolve(window.PDFLib));
+                    existing.addEventListener('error', () => reject(new Error('加载 PDF 压缩组件失败')));
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.id = scriptId;
+                script.src = 'https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js';
+                script.onload = () => resolve(window.PDFLib);
+                script.onerror = () => reject(new Error('加载 PDF 压缩组件失败'));
+                document.head.appendChild(script);
+            });
+        }
+
+        return this.pdfLibLoaderPromise;
+    }
+
+    static async compressPdfFile(file, { targetBytes } = {}) {
+        const mimeType = String(file?.type || '').toLowerCase();
+        if (mimeType !== 'application/pdf') {
+            return file;
+        }
+
+        const limit = Number(targetBytes) || this.resolveUploadSizeLimit('pdf', mimeType);
+        if (file.size <= limit) {
+            return file;
+        }
+
+        try {
+            const PDFLib = await this.ensurePdfLibLoaded();
+            if (!PDFLib?.PDFDocument) {
+                return file;
+            }
+
+            const sourceBytes = await file.arrayBuffer();
+            const pdfDoc = await PDFLib.PDFDocument.load(sourceBytes, { ignoreEncryption: true });
+            const compressedBytes = await pdfDoc.save({ useObjectStreams: true });
+
+            if (!compressedBytes || compressedBytes.byteLength >= file.size) {
+                return file;
+            }
+
+            return new File([compressedBytes], file.name, {
+                type: 'application/pdf',
+                lastModified: Date.now()
+            });
+        } catch (error) {
+            console.warn('PDF 自动压缩失败，回退原文件:', error);
+            return file;
+        }
+    }
+
+    static async prepareFileBeforeUpload(file, type = 'general') {
+        const normalizedType = String(type || 'general').toLowerCase();
+        const mimeType = String(file?.type || 'application/octet-stream').toLowerCase();
+        const limit = this.resolveUploadSizeLimit(normalizedType, mimeType);
+
+        let candidate = file;
+        if (mimeType.startsWith('image/')) {
+            candidate = await this.compressImageFile(candidate, { targetBytes: limit, uploadType: normalizedType });
+        } else if (mimeType === 'application/pdf') {
+            candidate = await this.compressPdfFile(candidate, { targetBytes: limit });
+        }
+
+        if (candidate !== file && candidate.size < file.size) {
+            this.showNotification(`已自动压缩：${this.formatBytes(file.size)} -> ${this.formatBytes(candidate.size)}`, 'success', 2500);
+        }
+
+        if (candidate.size > limit) {
+            const limitText = this.formatBytes(limit);
+            throw new Error(`文件超过限制（${limitText}），已尝试在线压缩但仍超限`);
+        }
+
+        return candidate;
+    }
     
     // 文件上传
     static async uploadFile(file, type = 'general') {
+        const preparedFile = await this.prepareFileBeforeUpload(file, type);
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', preparedFile);
         formData.append('type', type);
         
         const token = this.getToken();
@@ -308,6 +512,40 @@ class AdminUtils {
             console.error('文件上传错误:', error);
             throw error;
         }
+    }
+
+    static async uploadPublicationPdf(publicationId, file) {
+        const id = Number.parseInt(publicationId, 10);
+        if (!Number.isInteger(id) || id <= 0) {
+            throw new Error('无效的论文 ID');
+        }
+
+        const preparedFile = await this.prepareFileBeforeUpload(file, 'pdf');
+        const formData = new FormData();
+        formData.append('pdf', preparedFile);
+
+        const token = this.getToken();
+
+        const response = await fetch(`${this.baseURL}/publications/${id}/upload-pdf`, {
+            method: 'POST',
+            headers: {
+                ...(token && { Authorization: `Bearer ${token}` })
+            },
+            body: formData
+        });
+
+        if (response.status === 401) {
+            this.clearToken();
+            window.location.href = this.loginPath;
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'PDF 上传失败');
+        }
+
+        return data;
     }
     
     // 表单验证

@@ -12,7 +12,15 @@ const ALLOWED_DOC_MIME = new Set([
     'application/x-zip-compressed'
 ]);
 
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+export const UPLOAD_SIZE_LIMITS = {
+    avatar: 512 * 1024,
+    image: 2 * 1024 * 1024,
+    news: 2 * 1024 * 1024,
+    pdf: 12 * 1024 * 1024,
+    document: 50 * 1024 * 1024,
+    general: 50 * 1024 * 1024,
+    fallback: 50 * 1024 * 1024
+};
 
 export function inferFileCategoryFromMime(mime = '') {
     if (mime.startsWith('image/')) {
@@ -97,13 +105,51 @@ export function getUploadCategory(uploadType = '', mime = '') {
     return inferFileCategoryFromMime(mime);
 }
 
-export function assertUploadFile(file, expectedFieldLabel = '文件') {
+export function resolveUploadSizeLimit(uploadType = '', mime = '') {
+    const normalizedType = String(uploadType || '').toLowerCase();
+
+    if (normalizedType === 'avatar') {
+        return UPLOAD_SIZE_LIMITS.avatar;
+    }
+
+    if (normalizedType === 'news' || normalizedType === 'image') {
+        return UPLOAD_SIZE_LIMITS.image;
+    }
+
+    if (normalizedType === 'pdf' || mime === 'application/pdf') {
+        return UPLOAD_SIZE_LIMITS.pdf;
+    }
+
+    if (mime.startsWith('image/')) {
+        return UPLOAD_SIZE_LIMITS.image;
+    }
+
+    if (normalizedType === 'document') {
+        return UPLOAD_SIZE_LIMITS.document;
+    }
+
+    return UPLOAD_SIZE_LIMITS.fallback;
+}
+
+export function assertUploadFile(file, expectedFieldLabel = '文件', options = {}) {
     if (!file) {
         throw new Error(`未收到${expectedFieldLabel}`);
     }
 
-    if (file.size > MAX_UPLOAD_BYTES) {
-        throw new Error('文件超过 50MB 限制');
+    const isFileLike = typeof file === 'object'
+        && typeof file.arrayBuffer === 'function'
+        && typeof file.size === 'number';
+    if (!isFileLike) {
+        throw new Error(`${expectedFieldLabel}格式无效`);
+    }
+
+    const uploadType = String(options.uploadType || '').toLowerCase();
+    const mimeType = String(options.mimeType || file.type || 'application/octet-stream');
+    const maxBytes = resolveUploadSizeLimit(uploadType, mimeType);
+
+    if (file.size > maxBytes) {
+        const maxMb = (maxBytes / 1024 / 1024).toFixed(maxBytes < 1024 * 1024 ? 1 : 0);
+        throw new Error(`${expectedFieldLabel}超过 ${maxMb}MB 限制`);
     }
 }
 

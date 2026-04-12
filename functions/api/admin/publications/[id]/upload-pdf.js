@@ -45,7 +45,10 @@ export async function onRequestPost(context) {
 
         const formData = await request.formData();
         const file = formData.get('pdf');
-        assertUploadFile(file, 'PDF 文件');
+        assertUploadFile(file, 'PDF 文件', {
+            uploadType: 'pdf',
+            mimeType: String(file?.type || 'application/octet-stream')
+        });
 
         if (file.type !== 'application/pdf') {
             return createErrorResponse('仅支持 PDF 文件上传', 400);

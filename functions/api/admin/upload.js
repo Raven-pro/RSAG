@@ -24,9 +24,9 @@ export async function onRequestPost(context) {
             return createErrorResponse('成员账号仅允许上传新闻图片', 403);
         }
 
-        assertUploadFile(file, '文件');
+        const mimeType = String(file?.type || 'application/octet-stream');
+        assertUploadFile(file, '文件', { uploadType, mimeType });
 
-        const mimeType = String(file.type || 'application/octet-stream');
         if (!isAllowedUploadMime(mimeType)) {
             return createErrorResponse('不支持的文件类型，仅允许图片、PDF 和常见办公文档', 400);
         }

@@ -217,6 +217,7 @@
                                 </span>
                             </button>
                         </div>
+                        <div style="margin-top:0.5rem; color:#64748b; font-size:0.75rem; text-align:right;">PDF 最大 12MB；超限时会尝试在线压缩再上传。</div>
                     </form>
                 </div>
             </div>
@@ -751,16 +752,7 @@
                 return;
             }
             try {
-                const formData = new FormData();
-                formData.append('pdf', file);
-                const token = AdminUtils.getToken();
-                const resp = await fetch(`/api/admin/publications/${id}/upload-pdf`, {
-                    method: 'POST',
-                    headers: { ...(token && { 'Authorization': `Bearer ${token}` }) },
-                    body: formData
-                });
-                const data = await resp.json();
-                if (!resp.ok) throw new Error(data.error || '上传失败');
+                const data = await AdminUtils.uploadPublicationPdf(id, file);
                 AdminUtils.showNotification('PDF上传成功', 'success');
                 hideModal();
                 loadPublications(currentPage, currentSearch, currentType, currentStatus);
