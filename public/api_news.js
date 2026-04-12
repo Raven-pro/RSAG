@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let latestNews = [];
     let latestLang = 'zh';
     let deferredFitTimers = [];
+    let lastRenderedKey = '';
 
     if (!newsList) {
         console.error('错误：未能找到 ID 为 "news-list" 的新闻列表容器。');
@@ -142,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const maxCount = Math.max(1, getDisplayCount());
-        renderNewsList(latestNews.slice(0, Math.min(maxCount, latestNews.length)), lang);
+        applyNewsListBaseStyles();
 
         scheduleSidebarFit(() => {
             let count = computeAdaptiveCount(maxCount);
@@ -236,8 +237,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function buildRenderKey(recentNews, lang) {
+        return `${lang}::${recentNews.map((item) => String(item.id)).join('|')}`;
+    }
+
     function renderNewsList(recentNews, lang) {
         applyNewsListBaseStyles();
+        const renderKey = buildRenderKey(recentNews, lang);
+        if (renderKey === lastRenderedKey) {
+            return;
+        }
+
         newsList.innerHTML = '';
 
         recentNews.forEach(item => {
@@ -254,6 +264,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             newsList.appendChild(li);
         });
+
+        lastRenderedKey = renderKey;
     }
 
     function updateMoreNewsLink(lang) {
@@ -271,6 +283,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         newsList.appendChild(li);
+        lastRenderedKey = `__empty__${lang}`;
         updateMoreNewsLink(lang);
         scheduleSidebarFit();
     }
