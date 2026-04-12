@@ -451,8 +451,9 @@
                 const token = getToken();
                 if (!token) throw new Error('未找到认证token');
 
-                const response = await fetch(`/api/admin/stats?rangeDays=${rangeDays}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const response = await fetch(`/api/admin/stats?rangeDays=${rangeDays}&_=${Date.now()}`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    cache: 'no-store'
                 });
                 if (!response.ok) throw new Error('获取统计数据失败');
 
@@ -508,6 +509,14 @@
                 rangeDays = Number.parseInt(rangeSelect.value, 10) || 30;
                 loadStats();
             });
+            loadStats();
+        });
+
+        window.addEventListener('pageshow', () => {
+            loadStats();
+        });
+
+        window.addEventListener('focus', () => {
             loadStats();
         });
     </script>

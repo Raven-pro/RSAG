@@ -236,7 +236,7 @@ export async function onRequestGet(context) {
         ] = await Promise.all([
             db.prepare('SELECT COUNT(*) as count FROM publications').first(),
             db.prepare('SELECT COUNT(*) as count FROM news WHERE status = "published"').first(),
-            db.prepare('SELECT COUNT(*) as count FROM team_members WHERE status = "active"').first(),
+            db.prepare('SELECT COUNT(*) as count FROM team_members').first(),
             db.prepare('SELECT COUNT(*) as count FROM files').first(),
             db.prepare(`
                 SELECT date(created_at) as day, COUNT(*) as count
