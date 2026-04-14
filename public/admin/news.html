@@ -145,7 +145,7 @@
                 <h1>新闻管理</h1>
                 <p>管理课题组的新闻动态和最新资讯</p>
                 <div style="margin-top: 0.6rem; color: #64748b; font-size: 0.9rem;">
-                    当前策略：成员可先保存本人新闻草稿，完成后再提交审核；管理员审核通过后才会发布。
+                    当前策略：成员可先保存本人新闻草稿，完成后再提交审核；管理员审核通过后才会发布。成员删除已发布新闻会进入“删除待审核”，由管理员最终审核删除。
                 </div>
             </div>
 
@@ -160,6 +160,7 @@
                         <option value="">全部状态</option>
                         <option value="draft">草稿</option>
                         <option value="pending_review">待审核</option>
+                        <option value="pending_delete">删除待审核</option>
                         <option value="published">已发布</option>
                         <option value="scheduled">定时发布</option>
                     </select>
@@ -415,7 +416,7 @@
         let pendingUploadedImage = null;
         let pendingInlineUploads = [];
         const selectedNewsIds = new Set();
-        const workflowStatuses = ['draft', 'pending_review', 'published', 'scheduled'];
+        const workflowStatuses = ['draft', 'pending_review', 'pending_delete', 'published', 'scheduled'];
         const currentUser = AdminUtils.getCurrentUser();
         const isAdmin = AdminUtils.isAdmin();
         const markdownEditors = {
@@ -865,8 +866,18 @@
                     return;
                 }
                 
-                tbody.innerHTML = news.map(newsItem => `
-                    <tr>
+                tbody.innerHTML = news.map(newsItem => {
+                    const isOwner = String(newsItem.created_by || '') === String(currentUser?.username || '');
+                    const isDeletePending = String(newsItem.status || '') === 'pending_delete';
+                    const canEdit = isAdmin ? !isDeletePending : (isOwner && !isDeletePending);
+                    const canDelete = isAdmin || isOwner;
+                    const deleteLabel = isAdmin
+                        ? (isDeletePending ? '审核删除' : '删除')
+                        : (isDeletePending ? '已申请删除' : '删除');
+                    const deleteDisabled = !isAdmin && isDeletePending;
+
+                    return `
+                    <tr data-news-id="${newsItem.id}" data-status="${String(newsItem.status || '')}">
                         ${isAdmin ? `<td><input type="checkbox" class="news-row-select" data-id="${newsItem.id}"></td>` : ''}
                         <td>
                             <div style="font-weight: 500;">${newsItem.title}</div>
@@ -883,9 +894,9 @@
                         </td>
                         <td>
                             <div style="display: flex; gap: 0.5rem;">
-                                <button class="btn btn-small btn-secondary" onclick="editNews(${newsItem.id})">
+                                ${canEdit ? `<button class="btn btn-small btn-secondary" onclick="editNews(${newsItem.id})">
                                     编辑
-                                </button>
+                                </button>` : ''}
                                 <button class="btn btn-small btn-secondary" onclick="viewNews(${newsItem.id})">
                                     查看
                                 </button>
@@ -895,11 +906,13 @@
                                 <button class="btn btn-small btn-secondary" onclick="copyFrontendNewsLink(${newsItem.id})">
                                     复制链接
                                 </button>
-                                ${isAdmin ? `<button class="btn btn-small btn-danger" onclick="deleteNews(${newsItem.id})">删除</button>` : ''}
+                                ${canDelete ? `<button class="btn btn-small btn-danger" ${deleteDisabled ? 'disabled' : ''} onclick="deleteNews(${newsItem.id})">${deleteLabel}</button>` : ''}
                             </div>
+                            ${isDeletePending ? `<div style="margin-top:0.35rem; font-size:0.72rem; color:#b45309;">${isAdmin ? '该新闻待删审核，点击“审核删除”执行最终删除。' : '该新闻已提交删除审核，等待管理员处理。'}</div>` : ''}
                         </td>
                     </tr>
-                `).join('');
+                `;
+                }).join('');
                 resetNewsSelection();
                 
                 // 更新分页
@@ -931,6 +944,7 @@
                 published: 'status-success',
                 draft: 'status-error',
                 pending_review: 'status-warning',
+                pending_delete: 'status-warning',
                 scheduled: 'status-warning'
             };
             return statusMap[status] || 'status-error';
@@ -942,6 +956,7 @@
                 published: '已发布',
                 draft: '草稿',
                 pending_review: '待审核',
+                pending_delete: '删除待审核',
                 scheduled: '定时发布'
             };
             return statusMap[status] || status;
@@ -1074,20 +1089,28 @@
         
         // 删除新闻
         async function deleteNews(id) {
-            if (!isAdmin) {
-                AdminUtils.showNotification('仅管理员可删除新闻', 'error');
-                return;
-            }
+            const row = document.querySelector(`#news-tbody tr[data-news-id="${id}"]`);
+            const statusValue = String(row?.dataset?.status || '').trim();
+            const isDeletePending = statusValue === 'pending_delete';
+            const isPublished = statusValue === 'published';
 
-            const confirmed = await AdminUtils.showConfirm('确定要删除这条新闻吗？此操作不可撤销。');
+            const confirmed = await AdminUtils.showConfirm(
+                isAdmin
+                    ? (isDeletePending
+                        ? '确认通过删除审核并彻底删除这条新闻吗？此操作不可撤销。'
+                        : '确定要删除这条新闻吗？此操作不可撤销。')
+                    : (isPublished
+                        ? '已发布新闻删除将进入审核流程，确定继续吗？'
+                        : '确定删除这条新闻吗？此操作不可撤销。')
+            );
             if (!confirmed) return;
             
             try {
-                await AdminUtils.apiRequest(`/news/${id}`, {
+                const result = await AdminUtils.apiRequest(`/news/${id}`, {
                     method: 'DELETE'
                 });
                 
-                AdminUtils.showNotification('新闻删除成功', 'success');
+                AdminUtils.showNotification(result?.message || (isAdmin ? '新闻删除成功' : '已提交删除审核'), 'success');
                 loadNews(currentPage, currentSearch, currentStatus);
                 
             } catch (error) {

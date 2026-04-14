@@ -771,11 +771,7 @@
             ];
 
             board.innerHTML = modules.map(module => {
-                const moduleStatuses = module.key === 'news'
-                    ? statuses.filter(status => status.key !== 'pending_delete')
-                    : statuses;
-
-                const rows = moduleStatuses.map(status => {
+                const rows = statuses.map(status => {
                     const value = Number(module.data?.[status.key]) || 0;
                     return `
                         <a href="${module.link}?status=${status.key}" style="display:flex; justify-content:space-between; align-items:center; text-decoration:none; border:1px solid #e2e8f0; border-radius:8px; padding:0.55rem 0.65rem; background:#ffffff;">
