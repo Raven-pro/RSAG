@@ -306,7 +306,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function loadNewsFromApi() {
         const lang = resolveLanguage();
-        const response = await fetch('/api/news');
+        const response = await fetch('/api/news?lite=1');
         if (!response.ok) {
             throw new Error(`加载新闻数据失败。状态码: ${response.status}`);
         }

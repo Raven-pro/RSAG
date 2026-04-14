@@ -9,6 +9,7 @@ import {
 } from '../../utils.js';
 import { assertUploadFile, buildPublicFileUrl, buildR2Key, resolveUploadsBucket } from '../../file-utils.js';
 import { syncEntityFileReference } from '../../file-references.js';
+import { normalizeWorkflowStatus } from '../../workflow.js';
 
 function extractUploadsKeyFromUrl(fileUrl) {
     const text = String(fileUrl || '').trim();
@@ -62,13 +63,18 @@ export async function onRequestPost(context) {
         const db = env.DB;
         await initDatabase(db);
 
-        const existing = await db.prepare('SELECT id, created_by, pdf_url FROM publications WHERE id = ?').bind(id).first();
+        const existing = await db.prepare('SELECT id, created_by, pdf_url, status FROM publications WHERE id = ?').bind(id).first();
         if (!existing) {
             return createErrorResponse('论文不存在', 404);
         }
 
         if (!isAdmin) {
             requireOwnerOrAdmin(user, existing.created_by, '只能上传自己论文的PDF');
+        }
+
+        const currentStatus = normalizeWorkflowStatus(existing.status, 'draft');
+        if (!isAdmin && currentStatus === 'pending_delete') {
+            return createErrorResponse('该论文处于删除待审核状态，暂不可上传 PDF', 409);
         }
 
         const key = buildR2Key('pdf', file.name);
@@ -107,16 +113,25 @@ export async function onRequestPost(context) {
                 WHERE id = ?
             `).bind(fileUrl, id).run();
         } else {
-            await db.prepare(`
-                UPDATE publications
-                SET pdf_url = ?,
-                    status = 'pending_review',
-                    submitted_at = CURRENT_TIMESTAMP,
-                    reviewed_by = NULL,
-                    reviewed_at = NULL,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).bind(fileUrl, id).run();
+            if (currentStatus === 'draft') {
+                await db.prepare(`
+                    UPDATE publications
+                    SET pdf_url = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).bind(fileUrl, id).run();
+            } else {
+                await db.prepare(`
+                    UPDATE publications
+                    SET pdf_url = ?,
+                        status = 'pending_review',
+                        submitted_at = CURRENT_TIMESTAMP,
+                        reviewed_by = NULL,
+                        reviewed_at = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).bind(fileUrl, id).run();
+            }
         }
 
         await syncEntityFileReference(db, {
@@ -158,14 +173,19 @@ export async function onRequestPost(context) {
 
         await logActivity(
             db,
-            '上传PDF',
+            isAdmin ? '上传PDF' : (currentStatus === 'draft' ? '上传PDF（草稿）' : '上传PDF并提交审核'),
             'publications',
             id,
             user.username,
             `上传PDF: ${file.name}`
         );
 
-        return createResponse({ url: fileUrl, message: 'PDF上传成功' });
+        return createResponse({
+            url: fileUrl,
+            message: isAdmin
+                ? 'PDF上传成功'
+                : (currentStatus === 'draft' ? 'PDF上传成功，草稿状态保持不变' : 'PDF上传成功，已重新提交审核')
+        });
     } catch (error) {
         console.error('上传论文 PDF 失败:', error);
         return createErrorResponse(error.message, error.status || 500);

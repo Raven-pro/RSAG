@@ -67,7 +67,7 @@ function withTypes(row) {
 
 // GET /api/publications - public publications list
 export async function onRequestGet(context) {
-    const { env } = context;
+    const { env, request } = context;
 
     try {
         const db = env.DB;
@@ -75,17 +75,44 @@ export async function onRequestGet(context) {
             return createErrorResponse('数据库未绑定', 500);
         }
 
+        const url = new URL(request.url);
+        const lite = url.searchParams.get('lite') === '1';
+
         await initDatabase(db);
 
-        const result = await db.prepare(`
-             SELECT id, title, authors, journal, year, volume, doi, url, abstract, keywords,
-                 type, types, status, scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
-                 created_at, updated_at
-            FROM publications
-             WHERE status = 'published'
-             OR (status = 'scheduled' AND scheduled_publish_at IS NOT NULL AND datetime(scheduled_publish_at) <= datetime('now'))
-            ORDER BY year DESC, created_at DESC
-        `).all();
+        const query = lite
+            ? `
+                SELECT
+                    id,
+                    title,
+                    authors,
+                    journal,
+                    year,
+                    volume,
+                    doi,
+                    url,
+                    type,
+                    types,
+                    status,
+                    scheduled_publish_at,
+                    created_at,
+                    updated_at
+                FROM publications
+                WHERE status = 'published'
+                   OR (status = 'scheduled' AND scheduled_publish_at IS NOT NULL AND datetime(scheduled_publish_at) <= datetime('now'))
+                ORDER BY year DESC, created_at DESC
+            `
+            : `
+                SELECT id, title, authors, journal, year, volume, doi, url, abstract, keywords,
+                    type, types, status, scheduled_publish_at, submitted_at, reviewed_by, reviewed_at,
+                    created_at, updated_at
+                FROM publications
+                WHERE status = 'published'
+                   OR (status = 'scheduled' AND scheduled_publish_at IS NOT NULL AND datetime(scheduled_publish_at) <= datetime('now'))
+                ORDER BY year DESC, created_at DESC
+            `;
+
+        const result = await db.prepare(query).all();
 
         return createResponse({ publications: (result.results || []).map(withTypes) });
     } catch (error) {

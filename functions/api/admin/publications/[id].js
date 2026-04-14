@@ -98,6 +98,11 @@ function hydratePublication(row) {
     };
 }
 
+function resolveMemberEditableStatus(rawStatus, fallback = 'draft') {
+    const normalized = normalizeWorkflowStatus(rawStatus, fallback);
+    return normalized === 'pending_review' ? 'pending_review' : 'draft';
+}
+
 // GET /api/admin/publications/[id]
 export async function onRequestGet(context) {
     const { request, env, params } = context;
@@ -163,11 +168,19 @@ export async function onRequestPut(context) {
 
         if (!isAdmin) {
             requireOwnerOrAdmin(user, existing.created_by, '只能编辑自己提交的论文');
+            const existingStatus = normalizeWorkflowStatus(existing.status, 'draft');
+            if (existingStatus === 'pending_delete') {
+                return createErrorResponse('该论文处于删除待审核状态，暂不可编辑', 409);
+            }
         }
+
+        const targetStatus = isAdmin
+            ? status
+            : resolveMemberEditableStatus(status, normalizeWorkflowStatus(existing.status, 'draft'));
 
         const workflow = buildWorkflowOnUpdate({
             existing,
-            status: isAdmin ? status : 'pending_review',
+            status: targetStatus,
             scheduledPublishAt: scheduled_publish_at,
             username: user.username
         });
@@ -189,15 +202,15 @@ export async function onRequestPut(context) {
 
         await logActivity(
             db,
-            isAdmin ? '更新论文' : '更新并提交论文审核',
+            isAdmin ? '更新论文' : (workflow.status === 'pending_review' ? '更新并提交论文审核' : '更新论文草稿'),
             'publications',
             id,
             user.username,
-            `${isAdmin ? '更新论文' : '更新并提交论文审核'}: ${title}`
+            `${isAdmin ? '更新论文' : (workflow.status === 'pending_review' ? '更新并提交论文审核' : '更新论文草稿')}: ${title}`
         );
 
         return createResponse({
-            message: isAdmin ? '论文更新成功' : '论文已更新并提交审核',
+            message: isAdmin ? '论文更新成功' : (workflow.status === 'pending_review' ? '论文已更新并提交审核' : '论文草稿已更新'),
             frontend_url: '/publications-api.html'
         });
     } catch (error) {

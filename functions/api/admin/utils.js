@@ -1,6 +1,8 @@
 // 数据库工具函数和认证中间件
 import { ensureUsersSchema, normalizeRole } from './auth/security.js';
 
+const dbInitCache = new WeakMap();
+
 function createHttpError(message, status = 500) {
     const error = new Error(message);
     error.status = status;
@@ -48,8 +50,8 @@ export function requireOwnerOrAdmin(user, ownerUsername, message = '无权访问
     }
 }
 
-// 数据库初始化
-export async function initDatabase(db) {
+// 数据库初始化（执行一次完整检查）
+async function initDatabaseCore(db) {
     try {
         await ensureUsersSchema(db);
 
@@ -189,6 +191,14 @@ export async function initDatabase(db) {
         await ensureColumnExists(db, 'files', 'deleted_by', 'TEXT');
         await ensureColumnExists(db, 'files', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP');
 
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_news_status_created_at ON news(status, created_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_news_status_scheduled_publish_at ON news(status, scheduled_publish_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_news_status_submitted_at ON news(status, submitted_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_news_created_by_status_created_at ON news(created_by, status, created_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_publications_status_scheduled_publish_at ON publications(status, scheduled_publish_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_publications_status_submitted_at ON publications(status, submitted_at)').run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_publications_created_by_status_year_created_at ON publications(created_by, status, year, created_at)').run();
+
         // 兼容历史状态值，统一映射到新工作流状态
         await db.prepare("UPDATE publications SET status = 'pending_review' WHERE lower(status) = 'submitted'").run();
         await db.prepare("UPDATE publications SET status = 'published' WHERE lower(status) = 'accepted'").run();
@@ -250,6 +260,7 @@ export async function initDatabase(db) {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `).run();
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at)').run();
 
         console.log('数据库初始化完成');
         
@@ -260,6 +271,31 @@ export async function initDatabase(db) {
         console.error('数据库初始化失败:', error);
         throw error;
     }
+}
+
+// 数据库初始化（带缓存，避免每次请求重复执行迁移与回填）
+export async function initDatabase(db, { force = false } = {}) {
+    if (!db || typeof db.prepare !== 'function') {
+        throw createHttpError('数据库未绑定', 500);
+    }
+
+    if (force) {
+        await initDatabaseCore(db);
+        return;
+    }
+
+    const cached = dbInitCache.get(db);
+    if (cached) {
+        return cached;
+    }
+
+    const task = initDatabaseCore(db).catch((error) => {
+        dbInitCache.delete(db);
+        throw error;
+    });
+
+    dbInitCache.set(db, task);
+    return task;
 }
 
 // 插入示例数据

@@ -51,6 +51,8 @@ export async function onRequestPost(context) {
             return createErrorResponse('未找到可更新的论文记录', 404);
         }
 
+        const statements = [];
+
         for (const row of records) {
             const workflow = buildWorkflowOnUpdate({
                 existing: row,
@@ -59,7 +61,7 @@ export async function onRequestPost(context) {
                 username: user.username
             });
 
-            await db.prepare(`
+            const statement = db.prepare(`
                 UPDATE publications SET
                     status = ?,
                     scheduled_publish_at = ?,
@@ -75,7 +77,19 @@ export async function onRequestPost(context) {
                 workflow.reviewed_by,
                 workflow.reviewed_at,
                 row.id
-            ).run();
+            );
+
+            statements.push(statement);
+        }
+
+        if (statements.length) {
+            if (typeof db.batch === 'function') {
+                await db.batch(statements);
+            } else {
+                for (const statement of statements) {
+                    await statement.run();
+                }
+            }
         }
 
         await logActivity(

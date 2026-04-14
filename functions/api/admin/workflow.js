@@ -73,6 +73,7 @@ export function buildWorkflowOnCreate({ status, scheduledPublishAt, username }) 
 export function buildWorkflowOnUpdate({ existing, status, scheduledPublishAt, username }) {
     const now = new Date().toISOString();
     const workflowStatus = normalizeWorkflowStatus(status, existing?.status || 'draft');
+    const existingStatus = normalizeWorkflowStatus(existing?.status, 'draft');
     const schedule = normalizeScheduledPublishAt(scheduledPublishAt, workflowStatus);
 
     const result = {
@@ -83,8 +84,20 @@ export function buildWorkflowOnUpdate({ existing, status, scheduledPublishAt, us
         reviewed_at: existing?.reviewed_at || null
     };
 
-    if (workflowStatus === 'pending_review' && !result.submitted_at) {
-        result.submitted_at = now;
+    if (workflowStatus === 'draft') {
+        result.submitted_at = null;
+        result.reviewed_by = null;
+        result.reviewed_at = null;
+        return result;
+    }
+
+    if (workflowStatus === 'pending_review') {
+        if (existingStatus !== 'pending_review' || !result.submitted_at) {
+            result.submitted_at = now;
+        }
+        result.reviewed_by = null;
+        result.reviewed_at = null;
+        return result;
     }
 
     if (workflowStatus === 'published') {

@@ -44,7 +44,7 @@
                 <h1>论文管理</h1>
                 <p>管理课题组发表的论文和研究成果</p>
                 <div style="margin-top: 0.6rem; color: #64748b; font-size: 0.9rem;">
-                    当前策略：成员可提交/编辑本人论文，提交或修改后自动进入“待审核”；成员删除已发布论文会进入“删除待审核”，由管理员最终审核删除。
+                    当前策略：成员可先保存本人论文草稿，完成后再提交审核；管理员审核通过后才会发布。成员删除已发布论文会进入“删除待审核”，由管理员最终审核删除。
                 </div>
                 <div id="pdf-bind-banner" style="display:none; margin-top:0.75rem; border:1px solid #c7d2fe; background:#eef2ff; color:#1e3a8a; border-radius:8px; padding:0.7rem 0.8rem;"></div>
             </div>
@@ -257,16 +257,26 @@
             const ownershipFilter = document.getElementById('ownership-filter');
 
             if (!isAdmin) {
-                addBtn.textContent = '➕ 提交论文';
-                saveText.textContent = '提交审核';
-                statusSelect.innerHTML = '<option value="pending_review">待审核</option>';
-                statusSelect.value = 'pending_review';
+                addBtn.textContent = '➕ 添加论文';
+                statusSelect.innerHTML = '<option value="draft">草稿</option><option value="pending_review">待审核</option>';
+                if (!['draft', 'pending_review'].includes(statusSelect.value)) {
+                    statusSelect.value = 'draft';
+                }
                 if (ownershipFilter) {
                     ownershipFilter.value = currentOwnership;
                 }
             }
 
+            updateMemberSaveButtonText();
+
             updateScheduledFieldVisibility();
+        }
+
+        function updateMemberSaveButtonText() {
+            if (isAdmin) return;
+            const saveText = document.getElementById('save-text');
+            const statusValue = document.getElementById('status').value;
+            saveText.textContent = statusValue === 'draft' ? '保存草稿' : '提交审核';
         }
 
         function toDatetimeLocalValue(value) {
@@ -560,7 +570,7 @@
                         : (isDeletePending ? '已申请删除' : '删除');
                     const deleteDisabled = !isAdmin && isDeletePending;
                     return `
-                    <tr data-publication-id="${pub.id}">
+                    <tr data-publication-id="${pub.id}" data-status="${String(pub.status || '')}">
                         ${isAdmin ? `<td><input type="checkbox" class="publication-row-select" data-id="${pub.id}"></td>` : ''}
                         <td>
                             <div style="font-weight: 500; line-height: 1.4;">${pub.title}</div>
@@ -648,14 +658,15 @@
             const form = document.getElementById('publication-form');
             const title = document.getElementById('modal-title');
             
-            title.textContent = isAdmin ? '添加论文' : '提交论文';
+            title.textContent = isAdmin ? '添加论文' : '添加论文';
             form.reset();
             restoreTypeCheckboxValues(form);
             document.getElementById('publication-id').value = '';
             
             // 设置默认年份为当前年份
             document.getElementById('year').value = new Date().getFullYear();
-            document.getElementById('status').value = isAdmin ? 'draft' : 'pending_review';
+            document.getElementById('status').value = isAdmin ? 'draft' : 'draft';
+            updateMemberSaveButtonText();
             updateScheduledFieldVisibility();
             
             modal.style.display = 'block';
@@ -693,8 +704,12 @@
                 });
 
                 if (!isAdmin) {
-                    document.getElementById('status').value = 'pending_review';
+                    const statusValue = String(publication.status || '').trim();
+                    document.getElementById('status').value = ['draft', 'pending_review'].includes(statusValue)
+                        ? statusValue
+                        : 'draft';
                 }
+                updateMemberSaveButtonText();
                 updateScheduledFieldVisibility();
                 
                 modal.style.display = 'block';
@@ -709,9 +724,9 @@
         // 删除论文
         async function deletePublication(id) {
             const row = document.querySelector(`#publications-tbody tr[data-publication-id="${id}"]`);
-            const statusText = row?.querySelector('.status-badge')?.textContent?.trim() || '';
-            const isDeletePending = statusText.includes('删除待审核');
-            const isPublished = statusText.includes('已发布');
+            const statusValue = String(row?.dataset?.status || '').trim();
+            const isDeletePending = statusValue === 'pending_delete';
+            const isPublished = statusValue === 'published';
 
             const confirmed = await AdminUtils.showConfirm(
                 isAdmin
@@ -786,7 +801,8 @@
             }
 
             if (!isAdmin) {
-                formData.set('status', 'pending_review');
+                const statusValue = formData.get('status');
+                formData.set('status', ['draft', 'pending_review'].includes(statusValue) ? statusValue : 'draft');
             }
             
             // 显示加载状态
@@ -817,9 +833,15 @@
                     body: data
                 });
 
+                const memberStatus = !isAdmin ? String(data.status || 'draft') : '';
+
                 const successMessage = isEdit
-                    ? (isAdmin ? '论文更新成功' : '论文已更新并提交审核')
-                    : (isAdmin ? '论文添加成功' : '论文已提交审核');
+                    ? (isAdmin
+                        ? '论文更新成功'
+                        : (memberStatus === 'pending_review' ? '论文已更新并提交审核' : '论文草稿已更新'))
+                    : (isAdmin
+                        ? '论文添加成功'
+                        : (memberStatus === 'pending_review' ? '论文已提交审核' : '论文草稿已保存'));
 
                 const frontendUrl = result?.frontend_url || '/publications-api.html';
                 const absoluteUrl = `${window.location.origin}${frontendUrl}`;
@@ -878,7 +900,10 @@
         // 事件监听
         document.getElementById('add-publication-btn').addEventListener('click', showAddModal);
         document.getElementById('cancel-btn').addEventListener('click', hideModal);
-        document.getElementById('status').addEventListener('change', updateScheduledFieldVisibility);
+        document.getElementById('status').addEventListener('change', () => {
+            updateScheduledFieldVisibility();
+            updateMemberSaveButtonText();
+        });
         
         // 搜索功能
         const searchInput = document.getElementById('search-input');

@@ -10,6 +10,11 @@ function hydrateNewsRow(row) {
     };
 }
 
+function resolveMemberEditableStatus(rawStatus, fallback = 'draft') {
+    const normalized = normalizeWorkflowStatus(rawStatus, fallback);
+    return normalized === 'pending_review' ? 'pending_review' : 'draft';
+}
+
 function extractEmbeddedImageUrls(...contents) {
     const merged = contents.map((item) => String(item || '')).join('\n');
     if (!merged.trim()) {
@@ -63,7 +68,28 @@ export async function onRequestGet(context) {
         // 确保数据库已初始化
         await initDatabase(db);
         
-        let baseQuery = 'SELECT * FROM news';
+        let baseQuery = `
+            SELECT
+                id,
+                title,
+                title_en,
+                summary,
+                summary_en,
+                author,
+                publish_date,
+                featured_image,
+                category,
+                tags,
+                status,
+                scheduled_publish_at,
+                submitted_at,
+                reviewed_by,
+                reviewed_at,
+                created_by,
+                created_at,
+                updated_at
+            FROM news
+        `;
         let countQuery = 'SELECT COUNT(*) as total FROM news';
         let params = [];
         let whereConditions = [];
@@ -153,8 +179,9 @@ export async function onRequestPost(context) {
         const db = env.DB;
         await initDatabase(db);
 
+        const targetStatus = isAdmin ? status : resolveMemberEditableStatus(status, 'draft');
         const workflow = buildWorkflowOnCreate({
-            status: isAdmin ? status : 'pending_review',
+            status: targetStatus,
             scheduledPublishAt: scheduled_publish_at,
             username: user.username
         });
@@ -189,13 +216,17 @@ export async function onRequestPost(context) {
         
         // 记录活动日志
         await logActivity(
-            db, isAdmin ? '发布新闻' : '提交新闻审核', 'news', result.meta.last_row_id,
-            user.username, `${isAdmin ? '发布新闻' : '提交新闻审核'}: ${title}`
+            db,
+            isAdmin ? '发布新闻' : (workflow.status === 'pending_review' ? '提交新闻审核' : '保存新闻草稿'),
+            'news',
+            result.meta.last_row_id,
+            user.username,
+            `${isAdmin ? '发布新闻' : (workflow.status === 'pending_review' ? '提交新闻审核' : '保存新闻草稿')}: ${title}`
         );
         
         return createResponse({
             id: result.meta.last_row_id,
-            message: isAdmin ? '新闻发布成功' : '新闻已提交审核',
+            message: isAdmin ? '新闻发布成功' : (workflow.status === 'pending_review' ? '新闻已提交审核' : '新闻草稿已保存'),
             frontend_url: `/news/detail.html?id=${result.meta.last_row_id}`
         }, 201);
         

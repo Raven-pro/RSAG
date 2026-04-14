@@ -93,7 +93,7 @@
             const listEl = document.getElementById('news-list');
             listEl.innerHTML = `<li class="rounded-lg border border-gray-200 p-4 text-gray-500">${i18n[currentLang].loading}</li>`;
             try {
-                const response = await fetch('/api/news');
+                const response = await fetch('/api/news?lite=1');
                 if (!response.ok) {
                     throw new Error(`状态码 ${response.status}`);
                 }
@@ -108,9 +108,11 @@
 
                 listEl.innerHTML = news.map(item => {
                     const title = currentLang === 'en' ? (item.title_en || item.title) : (item.title || item.title_en);
+                    const previewZh = stripHtml(item.summary || item.content_preview || item.summary_en || item.content_en_preview);
+                    const previewEn = stripHtml(item.summary_en || item.content_en_preview || item.summary || item.content_preview);
                     const summaryRaw = currentLang === 'en'
-                        ? (item.summary_en || item.summary || stripHtml(item.content_en || item.content))
-                        : (item.summary || item.summary_en || stripHtml(item.content || item.content_en));
+                        ? previewEn
+                        : previewZh;
                     const preview = summaryRaw ? (summaryRaw.length > 120 ? `${summaryRaw.slice(0, 120)}...` : summaryRaw) : i18n[currentLang].noSummary;
                     return `
                         <li class="rounded-lg border border-gray-200 p-4 hover:border-purple-300 transition-colors">

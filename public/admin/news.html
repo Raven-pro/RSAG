@@ -144,6 +144,9 @@
             <div class="content-header">
                 <h1>新闻管理</h1>
                 <p>管理课题组的新闻动态和最新资讯</p>
+                <div style="margin-top: 0.6rem; color: #64748b; font-size: 0.9rem;">
+                    当前策略：成员可先保存本人新闻草稿，完成后再提交审核；管理员审核通过后才会发布。
+                </div>
             </div>
 
             <!-- 工具栏 -->
@@ -675,18 +678,27 @@
             const addNewsBtn = document.getElementById('add-news-btn');
             const authorInput = document.getElementById('author');
             const statusSelect = document.getElementById('status');
-            const saveText = document.getElementById('save-text');
 
             if (!isAdmin) {
-                addNewsBtn.textContent = '➕ 提交新闻';
-                saveText.textContent = '提交审核';
+                addNewsBtn.textContent = '➕ 添加新闻';
                 authorInput.value = currentUser?.username || '';
                 authorInput.readOnly = true;
-                statusSelect.innerHTML = '<option value="pending_review">待审核</option>';
-                statusSelect.value = 'pending_review';
+                statusSelect.innerHTML = '<option value="draft">草稿</option><option value="pending_review">待审核</option>';
+                if (!['draft', 'pending_review'].includes(statusSelect.value)) {
+                    statusSelect.value = 'draft';
+                }
             }
 
+            updateMemberSaveButtonText();
+
             updateScheduledFieldVisibility();
+        }
+
+        function updateMemberSaveButtonText() {
+            if (isAdmin) return;
+            const saveText = document.getElementById('save-text');
+            const statusValue = document.getElementById('status').value;
+            saveText.textContent = statusValue === 'draft' ? '保存草稿' : '提交审核';
         }
 
         function toDatetimeLocalValue(value) {
@@ -941,7 +953,7 @@
             const form = document.getElementById('news-form');
             const title = document.getElementById('modal-title');
             
-            title.textContent = isAdmin ? '发布新闻' : '提交新闻';
+            title.textContent = isAdmin ? '发布新闻' : '添加新闻';
             form.reset();
             clearPendingUploadedImage();
             clearPendingInlineUploads();
@@ -951,7 +963,8 @@
             document.getElementById('publish_date').value = new Date().toISOString().split('T')[0];
             document.getElementById('author').value = isAdmin ? '管理员' : (currentUser?.username || '');
             document.getElementById('author').readOnly = !isAdmin;
-            document.getElementById('status').value = isAdmin ? 'draft' : 'pending_review';
+            document.getElementById('status').value = isAdmin ? 'draft' : 'draft';
+            updateMemberSaveButtonText();
             updateScheduledFieldVisibility();
             setMarkdownMode('zh', 'write');
             setMarkdownMode('en', 'write');
@@ -998,7 +1011,11 @@
                 if (!isAdmin) {
                     document.getElementById('author').value = currentUser?.username || news.author || '';
                     document.getElementById('author').readOnly = true;
-                    document.getElementById('status').value = 'pending_review';
+                    const statusValue = String(news.status || '').trim();
+                    document.getElementById('status').value = ['draft', 'pending_review'].includes(statusValue)
+                        ? statusValue
+                        : 'draft';
+                    updateMemberSaveButtonText();
                     updateScheduledFieldVisibility();
                 }
                 
@@ -1226,7 +1243,8 @@
             }
 
             if (!isAdmin) {
-                formData.set('status', 'pending_review');
+                const statusValue = formData.get('status');
+                formData.set('status', ['draft', 'pending_review'].includes(statusValue) ? statusValue : 'draft');
                 formData.set('author', currentUser?.username || '');
             }
             
@@ -1259,9 +1277,15 @@
                     body: data
                 });
 
+                const memberStatus = !isAdmin ? String(data.status || 'draft') : '';
+
                 const successMessage = isEdit
-                    ? (isAdmin ? '新闻更新成功' : '新闻已更新并提交审核')
-                    : (isAdmin ? '新闻发布成功' : '新闻已提交审核');
+                    ? (isAdmin
+                        ? '新闻更新成功'
+                        : (memberStatus === 'pending_review' ? '新闻已更新并提交审核' : '新闻草稿已更新'))
+                    : (isAdmin
+                        ? '新闻发布成功'
+                        : (memberStatus === 'pending_review' ? '新闻已提交审核' : '新闻草稿已保存'));
 
                 const frontendUrl = result?.frontend_url || (result?.id ? `/news/detail.html?id=${result.id}` : '');
 
@@ -1307,7 +1331,10 @@
         document.getElementById('preview-btn').addEventListener('click', previewNews);
         document.getElementById('close-preview-btn').addEventListener('click', hidePreviewModal);
         document.getElementById('upload-image-btn').addEventListener('click', uploadImage);
-        document.getElementById('status').addEventListener('change', updateScheduledFieldVisibility);
+        document.getElementById('status').addEventListener('change', () => {
+            updateScheduledFieldVisibility();
+            updateMemberSaveButtonText();
+        });
         document.getElementById('content').addEventListener('input', () => updateMarkdownPreview('zh'));
         document.getElementById('content_en').addEventListener('input', () => updateMarkdownPreview('en'));
         

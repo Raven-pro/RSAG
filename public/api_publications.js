@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetLiClasses = 'bg-white p-4 rounded-md shadow-sm border border-gray-200';
 
     // 从API加载论文数据
-    fetch('/api/publications')
+    fetch('/api/publications?lite=1')
         .then(response => {
             if (!response.ok) {
                 throw new Error(`加载论文数据失败。状态码: ${response.status}`);

@@ -18,6 +18,11 @@ function hydrateNewsRow(row) {
     };
 }
 
+function resolveMemberEditableStatus(rawStatus, fallback = 'draft') {
+    const normalized = normalizeWorkflowStatus(rawStatus, fallback);
+    return normalized === 'pending_review' ? 'pending_review' : 'draft';
+}
+
 function extractEmbeddedImageUrls(...contents) {
     const merged = contents.map((item) => String(item || '')).join('\n');
     if (!merged.trim()) {
@@ -115,9 +120,13 @@ export async function onRequestPut(context) {
 
         requireOwnerOrAdmin(user, existing.created_by, '只能编辑自己提交的新闻');
 
+        const targetStatus = isAdmin
+            ? status
+            : resolveMemberEditableStatus(status, normalizeWorkflowStatus(existing.status, 'draft'));
+
         const workflow = buildWorkflowOnUpdate({
             existing,
-            status: isAdmin ? status : 'pending_review',
+            status: targetStatus,
             scheduledPublishAt: scheduled_publish_at,
             username: user.username
         });
@@ -152,15 +161,15 @@ export async function onRequestPut(context) {
 
         await logActivity(
             db,
-            isAdmin ? '更新新闻' : '更新并提交审核',
+            isAdmin ? '更新新闻' : (workflow.status === 'pending_review' ? '更新并提交审核' : '更新新闻草稿'),
             'news',
             id,
             user.username,
-            `${isAdmin ? '更新新闻' : '更新并提交审核'}: ${title}`
+            `${isAdmin ? '更新新闻' : (workflow.status === 'pending_review' ? '更新并提交审核' : '更新新闻草稿')}: ${title}`
         );
 
         return createResponse({
-            message: isAdmin ? '新闻更新成功' : '新闻已更新并重新提交审核',
+            message: isAdmin ? '新闻更新成功' : (workflow.status === 'pending_review' ? '新闻已更新并重新提交审核' : '新闻草稿已更新'),
             frontend_url: `/news/detail.html?id=${id}`
         });
     } catch (error) {

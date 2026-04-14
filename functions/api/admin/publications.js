@@ -104,6 +104,11 @@ function hydratePublication(row) {
     };
 }
 
+function resolveMemberEditableStatus(rawStatus, fallback = 'draft') {
+    const normalized = normalizeWorkflowStatus(rawStatus, fallback);
+    return normalized === 'pending_review' ? 'pending_review' : 'draft';
+}
+
 // GET /api/admin/publications - 获取论文列表
 export async function onRequestGet(context) {
     const { request, env } = context;
@@ -127,7 +132,29 @@ export async function onRequestGet(context) {
         // 确保数据库已初始化
         await initDatabase(db);
         
-        let baseQuery = 'SELECT * FROM publications';
+        let baseQuery = `
+            SELECT
+                id,
+                title,
+                authors,
+                journal,
+                year,
+                volume,
+                doi,
+                url,
+                type,
+                types,
+                pdf_url,
+                status,
+                scheduled_publish_at,
+                submitted_at,
+                reviewed_by,
+                reviewed_at,
+                created_by,
+                created_at,
+                updated_at
+            FROM publications
+        `;
         let countQuery = 'SELECT COUNT(*) as total FROM publications';
         let params = [];
         const whereConditions = [];
@@ -235,8 +262,9 @@ export async function onRequestPost(context) {
         
         const normalizedTypes = normalizeTypesInput(types, type);
         const normalizedType = normalizePrimaryType(normalizedTypes, type);
+        const targetStatus = isAdmin ? status : resolveMemberEditableStatus(status, 'draft');
         const workflow = buildWorkflowOnCreate({
-            status: isAdmin ? status : 'pending_review',
+            status: targetStatus,
             scheduledPublishAt: scheduled_publish_at,
             username: user.username
         });
@@ -259,16 +287,16 @@ export async function onRequestPost(context) {
         // 记录活动日志
         await logActivity(
             db,
-            isAdmin ? '添加论文' : '提交论文审核',
+            isAdmin ? '添加论文' : (workflow.status === 'pending_review' ? '提交论文审核' : '保存论文草稿'),
             'publications',
             result.meta.last_row_id,
             user.username,
-            `${isAdmin ? '添加论文' : '提交论文审核'}: ${title}`
+            `${isAdmin ? '添加论文' : (workflow.status === 'pending_review' ? '提交论文审核' : '保存论文草稿')}: ${title}`
         );
         
         return createResponse({
             id: result.meta.last_row_id,
-            message: isAdmin ? '论文添加成功' : '论文已提交审核',
+            message: isAdmin ? '论文添加成功' : (workflow.status === 'pending_review' ? '论文已提交审核' : '论文草稿已保存'),
             frontend_url: '/publications-api.html'
         }, 201);
         
