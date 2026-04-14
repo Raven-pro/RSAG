@@ -1,7 +1,8 @@
-export const WORKFLOW_STATUSES = new Set(['draft', 'pending_review', 'published', 'scheduled']);
+export const WORKFLOW_STATUSES = new Set(['draft', 'pending_review', 'pending_delete', 'published', 'scheduled']);
 const STATUS_ALIASES = {
     submitted: 'pending_review',
-    accepted: 'published'
+    accepted: 'published',
+    delete_pending: 'pending_delete'
 };
 
 export function normalizeWorkflowStatus(value, fallback = 'draft') {

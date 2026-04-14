@@ -1,7 +1,6 @@
 import {
     authenticate,
     isAdminUser,
-    requireAdmin,
     requireOwnerOrAdmin,
     logActivity,
     createResponse,
@@ -213,7 +212,7 @@ export async function onRequestDelete(context) {
 
     try {
         const user = await authenticate(request, env);
-        requireAdmin(user);
+        const isAdmin = isAdminUser(user);
 
         const id = parseInt(params.id || '', 10);
         if (!Number.isInteger(id) || id <= 0) {
@@ -223,9 +222,43 @@ export async function onRequestDelete(context) {
         const db = env.DB;
         await initDatabase(db);
 
-        const existing = await db.prepare('SELECT title FROM publications WHERE id = ?').bind(id).first();
+        const existing = await db.prepare('SELECT title, created_by, status FROM publications WHERE id = ?').bind(id).first();
         if (!existing) {
             return createErrorResponse('论文不存在', 404);
+        }
+
+        requireOwnerOrAdmin(user, existing.created_by, '只能删除自己上传的论文');
+
+        if (!isAdmin) {
+            const normalizedStatus = normalizeWorkflowStatus(existing.status, 'draft');
+
+            if (normalizedStatus === 'pending_delete') {
+                return createResponse({ message: '该论文已提交删除审核，请等待管理员处理' });
+            }
+
+            if (normalizedStatus === 'published') {
+                await db.prepare(`
+                    UPDATE publications
+                    SET status = 'pending_delete',
+                        submitted_at = CURRENT_TIMESTAMP,
+                        reviewed_by = NULL,
+                        reviewed_at = NULL,
+                        scheduled_publish_at = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).bind(id).run();
+
+                await logActivity(
+                    db,
+                    '提交论文删除审核',
+                    'publications',
+                    id,
+                    user.username,
+                    `提交删除审核: ${existing.title}`
+                );
+
+                return createResponse({ message: '删除申请已提交，待管理员审核' });
+            }
         }
 
         await clearEntityFileReferences(db, {
@@ -237,7 +270,7 @@ export async function onRequestDelete(context) {
 
         await logActivity(db, '删除论文', 'publications', id, user.username, `删除论文: ${existing.title}`);
 
-        return createResponse({ message: '论文删除成功' });
+        return createResponse({ message: isAdmin ? '论文删除成功' : '已删除本人论文' });
     } catch (error) {
         console.error('删除论文失败:', error);
         return createErrorResponse(error.message, error.status || 500);

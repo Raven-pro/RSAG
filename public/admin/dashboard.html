@@ -735,6 +735,7 @@
 
             const summaryCards = [
                 { label: '待审核总量', value: Number(totals.pendingReview) || 0, color: '#d97706' },
+                { label: '删除待审核', value: Number(totals.pendingDelete) || 0, color: '#b45309' },
                 { label: '到期待发布', value: Number(totals.dueScheduled) || 0, color: '#2563eb' },
                 { label: '超3天待审核', value: Number(totals.stalePendingReview) || 0, color: '#dc2626' }
             ];
@@ -764,6 +765,7 @@
             const statuses = [
                 { key: 'draft', label: '草稿', color: '#64748b' },
                 { key: 'pending_review', label: '待审核', color: '#d97706' },
+                { key: 'pending_delete', label: '删除待审核', color: '#b45309' },
                 { key: 'scheduled', label: '定时发布', color: '#2563eb' },
                 { key: 'published', label: '已发布', color: '#059669' }
             ];

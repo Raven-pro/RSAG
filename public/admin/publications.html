@@ -44,7 +44,7 @@
                 <h1>论文管理</h1>
                 <p>管理课题组发表的论文和研究成果</p>
                 <div style="margin-top: 0.6rem; color: #64748b; font-size: 0.9rem;">
-                    当前策略：成员可提交/编辑本人论文，系统会自动进入“待审核”；管理员负责批量审核与发布。
+                    当前策略：成员可提交/编辑本人论文，提交或修改后自动进入“待审核”；成员删除已发布论文会进入“删除待审核”，由管理员最终审核删除。
                 </div>
                 <div id="pdf-bind-banner" style="display:none; margin-top:0.75rem; border:1px solid #c7d2fe; background:#eef2ff; color:#1e3a8a; border-radius:8px; padding:0.7rem 0.8rem;"></div>
             </div>
@@ -67,6 +67,7 @@
                         <option value="">全部状态</option>
                         <option value="draft">草稿</option>
                         <option value="pending_review">待审核</option>
+                        <option value="pending_delete">删除待审核</option>
                         <option value="published">已发布</option>
                         <option value="scheduled">定时发布</option>
                     </select>
@@ -222,7 +223,7 @@
                                 </span>
                             </button>
                         </div>
-                        <div style="margin-top:0.5rem; color:#64748b; font-size:0.75rem; text-align:right;">PDF 最大 12MB；超限时会尝试在线压缩再上传。</div>
+                        <div style="margin-top:0.5rem; color:#64748b; font-size:0.75rem; text-align:right;">PDF 为可选项，可先保存论文后再通过“上传PDF”补充；PDF 最大 12MB，超限时会尝试在线压缩再上传。</div>
                     </form>
                 </div>
             </div>
@@ -239,7 +240,7 @@
         let currentStatus = '';
         const canonicalPublicationTypes = ['SCI', 'EI', 'Conference', 'DomesticConference'];
         const selectedPublicationIds = new Set();
-        const workflowStatuses = ['draft', 'pending_review', 'published', 'scheduled'];
+        const workflowStatuses = ['draft', 'pending_review', 'pending_delete', 'published', 'scheduled'];
         const currentUser = AdminUtils.getCurrentUser();
         const isAdmin = AdminUtils.isAdmin();
         let pendingBindPdfUrl = '';
@@ -550,7 +551,14 @@
                 }
                 
                 tbody.innerHTML = publications.map(pub => {
-                    const canEdit = isAdmin || (String(pub.created_by || '') === String(currentUser?.username || ''));
+                    const isOwner = String(pub.created_by || '') === String(currentUser?.username || '');
+                    const isDeletePending = String(pub.status || '') === 'pending_delete';
+                    const canEdit = isAdmin ? !isDeletePending : (isOwner && !isDeletePending);
+                    const canDelete = isAdmin || isOwner;
+                    const deleteLabel = isAdmin
+                        ? (isDeletePending ? '审核删除' : '删除')
+                        : (isDeletePending ? '已申请删除' : '删除');
+                    const deleteDisabled = !isAdmin && isDeletePending;
                     return `
                     <tr data-publication-id="${pub.id}">
                         ${isAdmin ? `<td><input type="checkbox" class="publication-row-select" data-id="${pub.id}"></td>` : ''}
@@ -572,8 +580,9 @@
                                 <div style="display:flex; gap:0.45rem;">
                                     ${canEdit ? `<button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">编辑</button>` : ''}
                                     ${pendingBindPdfUrl ? `<button class="btn btn-small btn-primary" onclick="bindPendingPdfToPublication(${pub.id})">绑定此PDF</button>` : ''}
-                                    ${isAdmin ? `<button class="btn btn-small btn-danger" onclick="deletePublication(${pub.id})">删除</button>` : ''}
+                                    ${canDelete ? `<button class="btn btn-small btn-danger" ${deleteDisabled ? 'disabled' : ''} onclick="deletePublication(${pub.id})">${deleteLabel}</button>` : ''}
                                 </div>
+                                ${isDeletePending ? `<div style="font-size:0.72rem; color:#b45309;">${isAdmin ? '该论文待删审核，点击“审核删除”执行最终删除。' : '该论文已提交删除审核，等待管理员处理。'}</div>` : ''}
                                 <button class="btn btn-small btn-secondary" style="width: 100%;" onclick="copyPublicationsFrontendLink()">
                                     复制前台链接
                                 </button>
@@ -614,6 +623,7 @@
             const statusMap = {
                 published: 'status-success',
                 pending_review: 'status-warning',
+                pending_delete: 'status-warning',
                 scheduled: 'status-warning',
                 draft: 'status-error'
             };
@@ -625,6 +635,7 @@
             const statusMap = {
                 published: '已发布',
                 pending_review: '待审核',
+                pending_delete: '删除待审核',
                 scheduled: '定时发布',
                 draft: '草稿'
             };
@@ -697,20 +708,28 @@
         
         // 删除论文
         async function deletePublication(id) {
-            if (!isAdmin) {
-                AdminUtils.showNotification('仅管理员可删除论文', 'error');
-                return;
-            }
+            const row = document.querySelector(`#publications-tbody tr[data-publication-id="${id}"]`);
+            const statusText = row?.querySelector('.status-badge')?.textContent?.trim() || '';
+            const isDeletePending = statusText.includes('删除待审核');
+            const isPublished = statusText.includes('已发布');
 
-            const confirmed = await AdminUtils.showConfirm('确定要删除这篇论文吗？此操作不可撤销。');
+            const confirmed = await AdminUtils.showConfirm(
+                isAdmin
+                    ? (isDeletePending
+                        ? '确认通过删除审核并彻底删除这篇论文吗？此操作不可撤销。'
+                        : '确定要删除这篇论文吗？此操作不可撤销。')
+                    : (isPublished
+                        ? '已发布论文删除将进入审核流程，确定继续吗？'
+                        : '确定删除这篇论文吗？此操作不可撤销。')
+            );
             if (!confirmed) return;
             
             try {
-                await AdminUtils.apiRequest(`/publications/${id}`, {
+                const result = await AdminUtils.apiRequest(`/publications/${id}`, {
                     method: 'DELETE'
                 });
                 
-                AdminUtils.showNotification('论文删除成功', 'success');
+                AdminUtils.showNotification(result?.message || (isAdmin ? '论文删除成功' : '已提交删除审核'), 'success');
                 loadPublications(currentPage, currentSearch, currentType, currentStatus);
                 
             } catch (error) {

@@ -18,10 +18,11 @@ const TYPE_ALIASES = new Map([
     ['domesticconference', 'DomesticConference'],
     ['国内会议', 'DomesticConference']
 ]);
-const WORKFLOW_STATUSES = ['draft', 'pending_review', 'scheduled', 'published'];
+const WORKFLOW_STATUSES = ['draft', 'pending_review', 'pending_delete', 'scheduled', 'published'];
 const WORKFLOW_ALIASES = {
     submitted: 'pending_review',
-    accepted: 'published'
+    accepted: 'published',
+    delete_pending: 'pending_delete'
 };
 
 function parseRangeDays(rawValue) {
@@ -264,6 +265,7 @@ function buildWorkflowSummary(rows, extras = {}) {
     const result = {
         draft: 0,
         pending_review: 0,
+        pending_delete: 0,
         scheduled: 0,
         published: 0,
         total: 0,
@@ -403,6 +405,7 @@ export async function onRequestGet(context) {
         });
         const workflowTotals = {
             pendingReview: publicationWorkflow.pending_review + newsWorkflow.pending_review,
+            pendingDelete: publicationWorkflow.pending_delete + newsWorkflow.pending_delete,
             dueScheduled: publicationWorkflow.dueScheduled + newsWorkflow.dueScheduled,
             stalePendingReview: publicationWorkflow.stalePendingReview + newsWorkflow.stalePendingReview
         };
