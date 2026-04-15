@@ -223,7 +223,14 @@
                                 </span>
                             </button>
                         </div>
-                        <div style="margin-top:0.5rem; color:#64748b; font-size:0.75rem; text-align:right;">PDF 为可选项，可先保存论文后再通过“上传PDF”补充；PDF 最大 12MB，超限时会尝试在线压缩再上传。</div>
+                        <div style="margin-top:0.5rem; color:#64748b; font-size:0.75rem; text-align:right;">PDF 为可选项，可在编辑时先上传，点击“保存”后才会正式绑定；若直接取消，临时 PDF 会自动清理。</div>
+                        <div id="pdf-upload-status" style="margin-top:0.4rem; font-size:0.78rem; color:#475569; text-align:right;">当前未选择 PDF。</div>
+                        <div id="pdf-upload-progress" style="display:none; margin-top:0.45rem;">
+                            <div style="height:8px; background:#e2e8f0; border-radius:999px; overflow:hidden;">
+                                <div id="pdf-upload-progress-bar" style="height:100%; width:0%; background:#2563eb; transition:width 0.2s ease;"></div>
+                            </div>
+                            <div id="pdf-upload-progress-text" style="margin-top:0.28rem; font-size:0.76rem; color:#475569; text-align:right;">准备上传...</div>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -245,6 +252,8 @@
         const isAdmin = AdminUtils.isAdmin();
         let pendingBindPdfUrl = '';
         let currentOwnership = 'all';
+        let pendingPublicationPdf = null;
+        let currentPublicationPdfUrl = '';
 
         function getTableColumnSpan() {
             return isAdmin ? 7 : 6;
@@ -381,6 +390,92 @@
             renderPdfBindBanner();
             cleanupPdfBindQueryParams();
             loadPublications(currentPage, currentSearch, currentType, currentStatus);
+        }
+
+        async function deleteUploadedFileById(fileId) {
+            const id = Number.parseInt(fileId, 10);
+            if (!Number.isInteger(id) || id <= 0) return;
+            try {
+                await AdminUtils.apiRequest(`/files/${id}`, { method: 'DELETE' });
+            } catch (error) {
+                console.warn('清理临时 PDF 文件失败:', error);
+            }
+        }
+
+        function updatePdfUploadStatus() {
+            const statusEl = document.getElementById('pdf-upload-status');
+            if (!statusEl) return;
+
+            if (pendingPublicationPdf?.url) {
+                statusEl.style.color = '#166534';
+                statusEl.textContent = `已上传临时 PDF：${pendingPublicationPdf.name || '未命名文件'}（保存后生效）`;
+                return;
+            }
+
+            if (currentPublicationPdfUrl) {
+                statusEl.style.color = '#1e40af';
+                statusEl.textContent = '当前论文已绑定 PDF；若重新上传，保存后将替换原文件。';
+                return;
+            }
+
+            statusEl.style.color = '#475569';
+            statusEl.textContent = '当前未选择 PDF。';
+        }
+
+        function setPdfUploadProgress(percent = 0, text = '准备上传...') {
+            const container = document.getElementById('pdf-upload-progress');
+            const bar = document.getElementById('pdf-upload-progress-bar');
+            const textEl = document.getElementById('pdf-upload-progress-text');
+            if (!container || !bar || !textEl) return;
+
+            const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+            container.style.display = 'block';
+            bar.style.width = `${safePercent}%`;
+            textEl.textContent = text;
+        }
+
+        function resetPdfUploadProgress() {
+            const container = document.getElementById('pdf-upload-progress');
+            const bar = document.getElementById('pdf-upload-progress-bar');
+            const textEl = document.getElementById('pdf-upload-progress-text');
+            if (!container || !bar || !textEl) return;
+
+            container.style.display = 'none';
+            bar.style.width = '0%';
+            textEl.textContent = '准备上传...';
+        }
+
+        async function setPendingPublicationPdf(fileMeta) {
+            const id = Number.parseInt(fileMeta?.id, 10);
+            const url = String(fileMeta?.url || '').trim();
+            const name = String(fileMeta?.name || '').trim();
+            if (!Number.isInteger(id) || id <= 0 || !url) {
+                return;
+            }
+
+            if (pendingPublicationPdf?.id && pendingPublicationPdf.id !== id) {
+                await deleteUploadedFileById(pendingPublicationPdf.id);
+            }
+
+            pendingPublicationPdf = { id, url, name };
+            updatePdfUploadStatus();
+        }
+
+        function clearPendingPublicationPdf() {
+            pendingPublicationPdf = null;
+            updatePdfUploadStatus();
+        }
+
+        async function cleanupPendingPublicationPdf() {
+            if (!pendingPublicationPdf?.id) {
+                clearPendingPublicationPdf();
+                return;
+            }
+
+            const stale = pendingPublicationPdf;
+            pendingPublicationPdf = null;
+            updatePdfUploadStatus();
+            await deleteUploadedFileById(stale.id);
         }
 
         async function bindPendingPdfToPublication(id) {
@@ -666,6 +761,9 @@
             // 设置默认年份为当前年份
             document.getElementById('year').value = new Date().getFullYear();
             document.getElementById('status').value = isAdmin ? 'draft' : 'draft';
+            currentPublicationPdfUrl = '';
+            clearPendingPublicationPdf();
+            resetPdfUploadProgress();
             updateMemberSaveButtonText();
             updateScheduledFieldVisibility();
             
@@ -709,6 +807,9 @@
                         ? statusValue
                         : 'draft';
                 }
+                currentPublicationPdfUrl = String(publication.pdf_url || '').trim();
+                clearPendingPublicationPdf();
+                resetPdfUploadProgress();
                 updateMemberSaveButtonText();
                 updateScheduledFieldVisibility();
                 
@@ -766,10 +867,17 @@
         }
         
         // 隐藏模态框
-        function hideModal() {
+        async function hideModal(options = {}) {
+            const { keepPendingPdf = false } = options;
             const modal = document.getElementById('publication-modal');
             modal.style.display = 'none';
             document.body.style.overflow = 'auto';
+            if (!keepPendingPdf) {
+                await cleanupPendingPublicationPdf();
+            }
+            currentPublicationPdfUrl = '';
+            resetPdfUploadProgress();
+            updatePdfUploadStatus();
         }
         
         // 表单提交
@@ -833,20 +941,43 @@
                     body: data
                 });
 
+                const publicationId = isEdit
+                    ? Number.parseInt(id, 10)
+                    : Number.parseInt(result?.id, 10);
+                let pdfBoundOnSave = false;
+
+                if (pendingPublicationPdf?.url && Number.isInteger(publicationId) && publicationId > 0) {
+                    try {
+                        await AdminUtils.bindPublicationPdfFromUrl(publicationId, pendingPublicationPdf.url);
+                        currentPublicationPdfUrl = pendingPublicationPdf.url;
+                        pdfBoundOnSave = true;
+                        clearPendingPublicationPdf();
+                        AdminUtils.showNotification('PDF 已绑定到论文', 'success');
+                    } catch (bindError) {
+                        console.error('保存后绑定 PDF 失败:', bindError);
+                        await cleanupPendingPublicationPdf();
+                        AdminUtils.showNotification('论文已保存，但 PDF 绑定失败，请重新上传', 'error');
+                    }
+                }
+
                 const memberStatus = !isAdmin ? String(data.status || 'draft') : '';
 
                 const successMessage = isEdit
                     ? (isAdmin
-                        ? '论文更新成功'
-                        : (memberStatus === 'pending_review' ? '论文已更新并提交审核' : '论文草稿已更新'))
+                        ? (pdfBoundOnSave ? '论文更新成功，PDF 已同步' : '论文更新成功')
+                        : (memberStatus === 'pending_review'
+                            ? (pdfBoundOnSave ? '论文已更新并提交审核，PDF 已同步' : '论文已更新并提交审核')
+                            : (pdfBoundOnSave ? '论文草稿已更新并绑定 PDF' : '论文草稿已更新')))
                     : (isAdmin
-                        ? '论文添加成功'
-                        : (memberStatus === 'pending_review' ? '论文已提交审核' : '论文草稿已保存'));
+                        ? (pdfBoundOnSave ? '论文添加成功，PDF 已同步' : '论文添加成功')
+                        : (memberStatus === 'pending_review'
+                            ? (pdfBoundOnSave ? '论文已提交审核，PDF 已同步' : '论文已提交审核')
+                            : (pdfBoundOnSave ? '论文草稿已保存并绑定 PDF' : '论文草稿已保存')));
 
                 const frontendUrl = result?.frontend_url || '/publications-api.html';
                 const absoluteUrl = `${window.location.origin}${frontendUrl}`;
 
-                hideModal();
+                await hideModal({ keepPendingPdf: true });
                 const highlightPublicationIds = !isEdit ? [result?.id] : [];
                 await loadPublications(currentPage, currentSearch, currentType, currentStatus, highlightPublicationIds);
                 AdminUtils.showNotification(successMessage, 'success');
@@ -880,26 +1011,32 @@
         });
         document.getElementById('pdf-input').addEventListener('change', async (e) => {
             const file = e.target.files[0];
+            e.target.value = '';
             if (!file) return;
-            const id = document.getElementById('publication-id').value;
-            if (!id) {
-                AdminUtils.showNotification('请先保存论文，再上传PDF', 'error');
-                return;
-            }
             try {
-                const data = await AdminUtils.uploadPublicationPdf(id, file);
-                AdminUtils.showNotification('PDF上传成功', 'success');
-                hideModal();
-                loadPublications(currentPage, currentSearch, currentType, currentStatus);
+                setPdfUploadProgress(0, '准备上传 PDF...');
+                const result = await AdminUtils.uploadFileWithProgress(file, 'pdf', ({ percent }) => {
+                    setPdfUploadProgress(percent, `正在上传 PDF... ${percent}%`);
+                });
+                await setPendingPublicationPdf({
+                    id: result?.file?.id,
+                    url: result?.url,
+                    name: result?.file?.original_name || file.name
+                });
+                setPdfUploadProgress(100, '上传完成，等待保存绑定');
+                AdminUtils.showNotification('PDF 上传成功，点击“保存”后生效', 'success');
             } catch (err) {
                 console.error('PDF上传失败:', err);
-                AdminUtils.showNotification('PDF上传失败，请稍后重试', 'error');
+                setPdfUploadProgress(0, `上传失败：${err.message || '请稍后重试'}`);
+                AdminUtils.showNotification(err.message || 'PDF上传失败，请稍后重试', 'error');
             }
         });
         
         // 事件监听
         document.getElementById('add-publication-btn').addEventListener('click', showAddModal);
-        document.getElementById('cancel-btn').addEventListener('click', hideModal);
+        document.getElementById('cancel-btn').addEventListener('click', () => {
+            void hideModal();
+        });
         document.getElementById('status').addEventListener('change', () => {
             updateScheduledFieldVisibility();
             updateMemberSaveButtonText();
@@ -974,7 +1111,7 @@
         // 模态框点击外部关闭
         document.getElementById('publication-modal').addEventListener('click', (e) => {
             if (e.target.id === 'publication-modal') {
-                hideModal();
+                void hideModal();
             }
         });
         
@@ -984,6 +1121,7 @@
             applyInitialFiltersFromQuery();
             syncPublicationSelectionControls();
             renderPdfBindBanner();
+            updatePdfUploadStatus();
             loadPublications(1, currentSearch, currentType, currentStatus);
         });
         

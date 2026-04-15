@@ -514,6 +514,62 @@ class AdminUtils {
         }
     }
 
+    static async uploadFileWithProgress(file, type = 'general', onProgress = null) {
+        const preparedFile = await this.prepareFileBeforeUpload(file, type);
+        const formData = new FormData();
+        formData.append('file', preparedFile);
+        formData.append('type', type);
+
+        const token = this.getToken();
+
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${this.baseURL}/upload`);
+
+            if (token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            }
+
+            xhr.upload.onprogress = (event) => {
+                if (typeof onProgress !== 'function') return;
+                const total = Number(event.total) || Number(preparedFile.size) || 0;
+                const loaded = Number(event.loaded) || 0;
+                const percent = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+                onProgress({ loaded, total, percent });
+            };
+
+            xhr.onerror = () => {
+                reject(new Error('网络错误，上传失败'));
+            };
+
+            xhr.onload = () => {
+                if (xhr.status === 401) {
+                    this.clearToken();
+                    window.location.href = this.loginPath;
+                    reject(new Error('登录已过期，请重新登录'));
+                    return;
+                }
+
+                let data = {};
+                try {
+                    data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+                } catch {
+                    reject(new Error('上传响应解析失败'));
+                    return;
+                }
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(data);
+                    return;
+                }
+
+                reject(new Error(data.error || '上传失败'));
+            };
+
+            xhr.send(formData);
+        });
+    }
+
     static async uploadPublicationPdf(publicationId, file) {
         const id = Number.parseInt(publicationId, 10);
         if (!Number.isInteger(id) || id <= 0) {

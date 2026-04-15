@@ -20,8 +20,8 @@ export async function onRequestPost(context) {
         const file = formData.get('file');
         const uploadType = String(formData.get('type') || '').toLowerCase();
 
-        if (!isAdminUser(user) && uploadType !== 'news') {
-            return createErrorResponse('成员账号仅允许上传新闻图片', 403);
+        if (!isAdminUser(user) && !['news', 'pdf'].includes(uploadType)) {
+            return createErrorResponse('成员账号仅允许上传新闻图片或论文 PDF', 403);
         }
 
         const mimeType = String(file?.type || 'application/octet-stream');

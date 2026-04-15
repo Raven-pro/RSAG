@@ -85,8 +85,8 @@ export async function onRequestDelete(context) {
             }
 
             const category = String(existing.category || '').toLowerCase();
-            if (!['news', 'avatar'].includes(category)) {
-                return createErrorResponse('仅允许删除自己上传的新闻/头像文件', 403);
+            if (!['news', 'avatar', 'pdf'].includes(category)) {
+                return createErrorResponse('仅允许删除自己上传的新闻/头像/PDF 文件', 403);
             }
         }
 
