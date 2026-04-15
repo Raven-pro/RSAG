@@ -727,6 +727,29 @@ class AdminUtils {
             }
         });
     }
+
+    static injectConsoleCredit() {
+        const creditText = 'Console Designed by Junyi Chen';
+
+        document.querySelectorAll('.sidebar-nav').forEach((nav) => {
+            if (nav.querySelector('.console-credit')) {
+                return;
+            }
+
+            const credit = document.createElement('div');
+            credit.className = 'console-credit';
+            credit.textContent = creditText;
+            nav.appendChild(credit);
+        });
+
+        const loginCard = document.querySelector('.login-card');
+        if (loginCard && !loginCard.querySelector('.console-credit-login')) {
+            const loginCredit = document.createElement('div');
+            loginCredit.className = 'console-credit console-credit-login';
+            loginCredit.textContent = creditText;
+            loginCard.appendChild(loginCredit);
+        }
+    }
     
     // 检查登录状态
     static checkAuth() {
@@ -747,6 +770,8 @@ class AdminUtils {
 
 // 页面加载完成后的通用初始化
 document.addEventListener('DOMContentLoaded', () => {
+    AdminUtils.injectConsoleCredit();
+
     // 如果不是登录页面，检查认证状态
     if (!AdminUtils.isLoginRoute()) {
         AdminUtils.checkAuth();

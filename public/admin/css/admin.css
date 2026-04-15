@@ -117,6 +117,21 @@ body {
   background: #fef2f2;
 }
 
+.console-credit {
+  margin: 1rem 1.5rem 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.console-credit-login {
+  margin: 1rem 0 0;
+  padding-top: 0.75rem;
+}
+
 .main-content {
   margin-left: var(--sidebar-width);
   flex: 1;
@@ -232,6 +247,14 @@ body {
 .btn-small {
   padding: 0.5rem 1rem;
   font-size: 0.75rem;
+}
+
+.compact-action-btn {
+  min-width: 92px;
+  justify-content: center;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+  white-space: nowrap;
 }
 
 /* 卡片样式 */
