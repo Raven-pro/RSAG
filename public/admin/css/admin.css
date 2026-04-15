@@ -249,12 +249,16 @@ body {
   font-size: 0.75rem;
 }
 
-.compact-action-btn {
-  min-width: 92px;
-  justify-content: center;
-  padding-left: 0.85rem;
-  padding-right: 0.85rem;
-  white-space: nowrap;
+.publication-action-grid {
+  display: inline-grid;
+  grid-template-columns: max-content max-content;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.publication-action-wide {
+  grid-column: 1 / span 2;
+  width: 100%;
 }
 
 /* 卡片样式 */

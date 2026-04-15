@@ -893,20 +893,14 @@
                             </span>
                         </td>
                         <td>
-                            <div style="display: flex; gap: 0.5rem;">
-                                ${canEdit ? `<button class="btn btn-small btn-secondary compact-action-btn" onclick="editNews(${newsItem.id})">
-                                    编辑
-                                </button>` : ''}
-                                <button class="btn btn-small btn-secondary compact-action-btn" onclick="viewNews(${newsItem.id})">
-                                    查看
-                                </button>
-                                <a class="btn btn-small btn-secondary compact-action-btn" href="/news/detail.html?id=${newsItem.id}" target="_blank" rel="noopener noreferrer">
-                                    前台
-                                </a>
-                                <button class="btn btn-small btn-secondary compact-action-btn" onclick="copyFrontendNewsLink(${newsItem.id})">
-                                    复制链接
-                                </button>
-                                ${canDelete ? `<button class="btn btn-small btn-danger compact-action-btn" ${deleteDisabled ? 'disabled' : ''} onclick="deleteNews(${newsItem.id})">${deleteLabel}</button>` : ''}
+                            <div style="display:flex; flex-direction:column; gap:0.45rem; align-items:flex-start;">
+                                <div class="publication-action-grid">
+                                    ${canEdit ? `<button class="btn btn-small btn-secondary" onclick="editNews(${newsItem.id})">编辑</button>` : ''}
+                                    ${canDelete ? `<button class="btn btn-small btn-danger" ${deleteDisabled ? 'disabled' : ''} onclick="deleteNews(${newsItem.id})">${deleteLabel}</button>` : ''}
+                                    <button class="btn btn-small btn-secondary" onclick="viewNews(${newsItem.id})">查看</button>
+                                    <a class="btn btn-small btn-secondary" href="/news/detail.html?id=${newsItem.id}" target="_blank" rel="noopener noreferrer">前台</a>
+                                    <button class="btn btn-small btn-secondary publication-action-wide" onclick="copyFrontendNewsLink(${newsItem.id})">复制链接</button>
+                                </div>
                             </div>
                             ${isDeletePending ? `<div style="margin-top:0.35rem; font-size:0.72rem; color:#b45309;">${isAdmin ? '该新闻待删审核，点击“审核删除”执行最终删除。' : '该新闻已提交删除审核，等待管理员处理。'}</div>` : ''}
                         </td>

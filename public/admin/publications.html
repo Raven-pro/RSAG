@@ -587,16 +587,16 @@
                         </td>
                         <td>
                             <div style="display:flex; flex-direction:column; gap:0.45rem; align-items:flex-start;">
-                                <div style="display:flex; gap:0.45rem;">
-                                    ${canEdit ? `<button class="btn btn-small btn-secondary compact-action-btn" onclick="editPublication(${pub.id})">编辑</button>` : ''}
-                                    ${pendingBindPdfUrl ? `<button class="btn btn-small btn-primary compact-action-btn" onclick="bindPendingPdfToPublication(${pub.id})">绑定此PDF</button>` : ''}
-                                    ${canDelete ? `<button class="btn btn-small btn-danger compact-action-btn" ${deleteDisabled ? 'disabled' : ''} onclick="deletePublication(${pub.id})">${deleteLabel}</button>` : ''}
+                                <div class="publication-action-grid">
+                                    ${canEdit ? `<button class="btn btn-small btn-secondary" onclick="editPublication(${pub.id})">编辑</button>` : ''}
+                                    ${canDelete ? `<button class="btn btn-small btn-danger" ${deleteDisabled ? 'disabled' : ''} onclick="deletePublication(${pub.id})">${deleteLabel}</button>` : ''}
+                                    ${pendingBindPdfUrl ? `<button class="btn btn-small btn-primary publication-action-wide" onclick="bindPendingPdfToPublication(${pub.id})">绑定此PDF</button>` : ''}
+                                    <button class="btn btn-small btn-secondary publication-action-wide" onclick="copyPublicationsFrontendLink()">
+                                        复制前台链接
+                                    </button>
+                                    ${pub.pdf_url ? `<a class="btn btn-small btn-secondary publication-action-wide" style="text-align:center;" href="${pub.pdf_url}" target="_blank">下载PDF</a>` : ''}
                                 </div>
                                 ${isDeletePending ? `<div style="font-size:0.72rem; color:#b45309;">${isAdmin ? '该论文待删审核，点击“审核删除”执行最终删除。' : '该论文已提交删除审核，等待管理员处理。'}</div>` : ''}
-                                <button class="btn btn-small btn-secondary compact-action-btn" onclick="copyPublicationsFrontendLink()">
-                                    复制前台链接
-                                </button>
-                                ${pub.pdf_url ? `<a class="btn btn-small btn-secondary compact-action-btn" style="text-align:center;" href="${pub.pdf_url}" target="_blank">下载PDF</a>` : ''}
                             </div>
                         </td>
                     </tr>
