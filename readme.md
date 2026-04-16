@@ -34,24 +34,7 @@
 - `npm run build`：构建并校验 Pages Functions
 - `npm run cf:check`：部署前检查（配置 + 绑定 + 构建）
 - `npm run cf:dev`：本地运行 Pages
-- `npm run migrate:legacy`：从 `data.json` + `public/news/item*.html` 生成 D1 导入 SQL
-- `npm run migrate:legacy:local`：将历史数据导入本地 D1
-- `npm run migrate:legacy:remote`：将历史数据导入云端 D1
 - `npm run deploy`：手动 Pages 发布（本地执行）
-
-## 历史数据上云（一次性迁移）
-当云端 D1 数据不完整时，可以把历史静态数据先导入云端：
-
-1. 生成 SQL（仅生成，不执行）
-   - `npm run migrate:legacy`
-2. 执行到云端 D1
-   - `npm run migrate:legacy:remote`
-
-说明：
-- 新闻会合并 `data.json` 与 `public/news/item*.html`，并自动保留静态页中的正文和图片链接。
-- 若新闻已存在于 D1，迁移会回填缺失的 `title_en/summary_en/content_en`（仅在英文为空或与中文相同的情况下覆盖）。
-- 图片位于 `public/images/**` 时，会随 Pages 静态资源发布，不需要额外写入 D1。
-- 导入 SQL 使用“存在则跳过”的方式，可重复执行，避免重复插入同一条记录。
 
 ## 目录说明
 - `public/`：前台页面和管理后台页面
